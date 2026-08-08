@@ -35,11 +35,195 @@ from InquirerPy.separator import Separator
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from iptv_client import IPTVClient
+import telegram_notifier as tg
 
 console = Console()
 
 API_DELAY = 1.5
 DOWNLOAD_DELAY = 0.5
+
+# ─── i18n ───
+LANG = "en"
+
+STRINGS = {
+    "en": {
+        "subtitle": "IPTV Media Tool -- Search, Stream & Download",
+        "auth": "Authentication",
+        "free_tier": "Free tier (no login)",
+        "free_hint": "auto-activates, access to free content",
+        "login_account": "Login with account",
+        "login_hint": "email + password for premium content",
+        "select_auth": "Select authentication",
+        "connecting": "Connecting to IPTV portal...",
+        "connected_free": "Connected (free tier)",
+        "cdn_auth": "Getting CDN authorization...",
+        "cdn_ready": "CDN ready",
+        "cdn_valid": "auth valid for {h:.1f} hours",
+        "cdn_no_cf": "No Cloudflare CDN found (downloads may not work)",
+        "main_menu": "Main Menu",
+        "search": "Search",
+        "search_hint": "find by name",
+        "latest": "Latest",
+        "latest_hint": "browse newest movies & series",
+        "by_genre": "By Genre",
+        "genre_hint": "Action, Comedy, Horror, Anime...",
+        "by_year": "By Year",
+        "year_hint": "2026, 2025, 2024...",
+        "by_country": "By Country",
+        "country_hint": "Japan, South Korea, USA...",
+        "by_person": "By Actor/Director",
+        "person_hint": "search by person",
+        "recommendations": "Recommendations",
+        "rec_hint": "similar to a title you like",
+        "live_tv": "Live TV",
+        "live_hint": "1000+ channels by category",
+        "telegram": "Telegram",
+        "telegram_hint": "download notifications",
+        "help": "Help",
+        "help_hint": "usage guide",
+        "exit": "Exit",
+        "select": "Select",
+        "bye": "Bye!",
+        "search_prompt": "Search",
+        "searching": "Searching '{q}'...",
+        "results_title": "Results for '{q}' ({n} total)",
+        "no_results": "No results for '{q}'",
+        "series": "Series",
+        "movie": "Movie",
+        "loading_eps": "Loading episodes...",
+        "found_eps": "Found {n} episodes",
+        "no_eps": "No episodes found",
+        "dl_all": "Download ALL episodes",
+        "dl_range": "Download a range",
+        "dl_single": "Download a single episode",
+        "browse_eps": "Browse episode list",
+        "view_details": "View details",
+        "view_link": "View details & stream URL",
+        "what_to_do": "What do you want to do?",
+        "from_ep": "From episode (1-{n})",
+        "to_ep": "To episode ({s}-{n})",
+        "ep_number": "Episode number (1-{n})",
+        "downloading": "Downloading {name}: ep {s}-{e}",
+        "output": "Output: {path}",
+        "dl_complete": "Download Complete",
+        "downloaded": "Downloaded",
+        "skipped": "Skipped",
+        "failed": "Failed",
+        "total_size": "Total size",
+        "location": "Location",
+        "open_folder": "Open download folder?",
+        "dl_movie": "Download",
+        "dl_movie_hint": "download the movie file",
+        "view_details_hint": "full info (cast, description, streams)",
+        "view_link_hint": "stream URL without downloading",
+        "getting_streams": "Getting streams...",
+        "dl_this_movie": "Download this movie?",
+        "overwrite": "Overwrite?",
+        "already_exists": "Already exists: {name} ({size:.1f} MB)",
+        "stream_url": "Stream URL",
+        "copy_hint": "Copy this URL to play in VLC or any player",
+        "email_user": "Email / username",
+        "enc_password": "Encrypted password (from app capture)",
+        "using_creds": "Using credentials from .env ({u})",
+        "pwd_tip": "The app encrypts passwords with DES before sending.",
+        "fallback_free": "Falling back to free tier...",
+        "login_failed": "Login failed: {msg}",
+        "logged_in": "Logged in",
+        "lang_prompt": "Language / Idioma",
+    },
+    "es": {
+        "subtitle": "IPTV Media Tool -- Buscar, Transmitir y Descargar",
+        "auth": "Autenticacion",
+        "free_tier": "Modo gratuito (sin login)",
+        "free_hint": "se activa solo, acceso a contenido free",
+        "login_account": "Iniciar sesion",
+        "login_hint": "email + contrasena para contenido premium",
+        "select_auth": "Selecciona autenticacion",
+        "connecting": "Conectando al portal IPTV...",
+        "connected_free": "Conectado (modo gratuito)",
+        "cdn_auth": "Obteniendo autorizacion CDN...",
+        "cdn_ready": "CDN listo",
+        "cdn_valid": "auth valido por {h:.1f} horas",
+        "cdn_no_cf": "No se encontro CDN Cloudflare (las descargas pueden no funcionar)",
+        "main_menu": "Menu Principal",
+        "search": "Buscar",
+        "search_hint": "buscar por nombre",
+        "latest": "Recientes",
+        "latest_hint": "peliculas y series mas nuevas",
+        "by_genre": "Por Genero",
+        "genre_hint": "Accion, Comedia, Horror, Anime...",
+        "by_year": "Por Ano",
+        "year_hint": "2026, 2025, 2024...",
+        "by_country": "Por Pais",
+        "country_hint": "Japon, Corea del Sur, USA...",
+        "by_person": "Por Actor/Director",
+        "person_hint": "buscar por persona",
+        "recommendations": "Recomendaciones",
+        "rec_hint": "similar a un titulo que te guste",
+        "live_tv": "TV en Vivo",
+        "live_hint": "1000+ canales por categoria",
+        "telegram": "Telegram",
+        "telegram_hint": "notificaciones de descarga",
+        "help": "Ayuda",
+        "help_hint": "guia de uso",
+        "exit": "Salir",
+        "select": "Selecciona",
+        "bye": "Hasta luego!",
+        "search_prompt": "Buscar",
+        "searching": "Buscando '{q}'...",
+        "results_title": "Resultados para '{q}' ({n} en total)",
+        "no_results": "Sin resultados para '{q}'",
+        "series": "Serie",
+        "movie": "Pelicula",
+        "loading_eps": "Cargando episodios...",
+        "found_eps": "Encontrados {n} episodios",
+        "no_eps": "No se encontraron episodios",
+        "dl_all": "Descargar TODOS los episodios",
+        "dl_range": "Descargar un rango",
+        "dl_single": "Descargar un solo episodio",
+        "browse_eps": "Ver lista de episodios",
+        "view_details": "Ver detalles",
+        "view_link": "Ver detalles y URL del stream",
+        "what_to_do": "Que deseas hacer?",
+        "from_ep": "Desde episodio (1-{n})",
+        "to_ep": "Hasta episodio ({s}-{n})",
+        "ep_number": "Numero de episodio (1-{n})",
+        "downloading": "Descargando {name}: ep {s}-{e}",
+        "output": "Destino: {path}",
+        "dl_complete": "Descarga Completa",
+        "downloaded": "Descargados",
+        "skipped": "Omitidos",
+        "failed": "Fallidos",
+        "total_size": "Tamano total",
+        "location": "Ubicacion",
+        "open_folder": "Abrir carpeta de descargas?",
+        "dl_movie": "Descargar",
+        "dl_movie_hint": "descargar la pelicula",
+        "view_details_hint": "info completa (cast, descripcion, streams)",
+        "view_link_hint": "URL del stream sin descargar",
+        "getting_streams": "Obteniendo streams...",
+        "dl_this_movie": "Descargar esta pelicula?",
+        "overwrite": "Sobrescribir?",
+        "already_exists": "Ya existe: {name} ({size:.1f} MB)",
+        "stream_url": "URL del Stream",
+        "copy_hint": "Copia esta URL para reproducir en VLC u otro reproductor",
+        "email_user": "Email / usuario",
+        "enc_password": "Contrasena encriptada (capturada de la app)",
+        "using_creds": "Usando credenciales del .env ({u})",
+        "pwd_tip": "La app encripta contrasenas con DES antes de enviar.",
+        "fallback_free": "Cambiando a modo gratuito...",
+        "login_failed": "Login fallido: {msg}",
+        "logged_in": "Sesion iniciada",
+        "lang_prompt": "Language / Idioma",
+    },
+}
+
+
+def t(key, **kwargs):
+    s = STRINGS.get(LANG, STRINGS["en"]).get(key, STRINGS["en"].get(key, key))
+    if kwargs:
+        return s.format(**kwargs)
+    return s
 
 def _env_dir():
     if (Path.cwd() / ".env").exists():
@@ -404,20 +588,20 @@ def pick_from_list(items, title="Results", page_size=15):
 
 # ─── Search ───
 def do_search(client):
-    query = ask("Search")
+    query = ask(t("search_prompt"))
     if not query:
         return None
-    info(f"Searching '{query}'...")
+    info(t("searching", q=query))
     time.sleep(API_DELAY)
     sr = client.search(query, size=30)
     items = []
     for grp in sr.get("searchItemList", []):
         items.extend(grp.get("itemList", []))
     if not items:
-        warn("No results found")
+        warn(t("no_results", q=query))
         return None
     total = sr.get("totalSize", len(items))
-    section(f"Results for '{query}' ({total} total)")
+    section(t("results_title", q=query, n=total))
     return pick_from_list(items, title=f"'{query}'")
 
 
@@ -827,7 +1011,7 @@ def handle_series(client, item, cdn_base, cf_auth, out_dir):
     content_id = item["contentId"]
     name = item.get("name", "Series")
 
-    section(f"Series: {name}")
+    section(f"{t('series')}: {name}")
 
     tags = item.get("tags", "")
     score = item.get("score", "")
@@ -839,30 +1023,35 @@ def handle_series(client, item, cdn_base, cf_auth, out_dir):
         if tags: parts.append(tags[:50])
         console.print(f"  [dim]{' | '.join(parts)}[/dim]\n")
 
-    info("Loading episodes...")
+    info(t("loading_eps"))
     time.sleep(API_DELAY)
     episodes = client.episodes(content_id)
     if not episodes:
-        error("No episodes found")
+        error(t("no_eps"))
         return
-    success(f"Found {len(episodes)} episodes")
+    success(t("found_eps", n=len(episodes)))
 
     safe_name = re.sub(r'[^\w\s\-]', '', name).strip().replace(' ', '_')
     series_dir = out_dir / safe_name
 
     choices = [
-        ("Download ALL episodes", f"{len(episodes)} eps -> {safe_name}/"),
-        ("Download a range", "e.g. episodes 1-10"),
-        ("Download a single episode", "pick one"),
-        ("Browse episode list", "see all episodes"),
-        ("View details", "full info about this series"),
+        (t("dl_all"), f"{len(episodes)} eps -> {safe_name}/"),
+        (t("dl_range"), "e.g. episodes 1-10"),
+        (t("dl_single"), ""),
+        (t("browse_eps"), ""),
+        (t("view_details"), ""),
+        (t("view_link"), t("view_link_hint")),
     ]
-    idx = select_menu("What do you want to do?", choices)
+    idx = select_menu(t("what_to_do"), choices)
     if idx is None:
         return
 
     if idx == 4:
         show_detail(client, item)
+        return
+
+    if idx == 5:
+        show_episode_links(client, item, episodes, cdn_base, cf_auth)
         return
 
     if idx == 3:
@@ -914,16 +1103,16 @@ def handle_series(client, item, cdn_base, cf_auth, out_dir):
     if idx == 0:
         start_ep, end_ep = 1, len(episodes)
     elif idx == 1:
-        val = ask(f"From episode (1-{len(episodes)})", "1")
+        val = ask(t("from_ep", n=len(episodes)), "1")
         if val is None: return
         try: start_ep = max(1, min(int(val), len(episodes)))
         except ValueError: start_ep = 1
-        val = ask(f"To episode ({start_ep}-{len(episodes)})", str(len(episodes)))
+        val = ask(t("to_ep", s=start_ep, n=len(episodes)), str(len(episodes)))
         if val is None: return
         try: end_ep = max(start_ep, min(int(val), len(episodes)))
         except ValueError: end_ep = len(episodes)
     elif idx == 2:
-        val = ask(f"Episode number (1-{len(episodes)})")
+        val = ask(t("ep_number", n=len(episodes)))
         if val is None: return
         try: start_ep = max(1, min(int(val), len(episodes)))
         except ValueError: start_ep = 1
@@ -933,9 +1122,12 @@ def handle_series(client, item, cdn_base, cf_auth, out_dir):
 
     series_dir.mkdir(parents=True, exist_ok=True)
 
-    section(f"Downloading {name}: ep {start_ep}-{end_ep}")
-    info(f"Output: {series_dir}")
+    section(t("downloading", name=name, s=start_ep, e=end_ep))
+    info(t("output", path=str(series_dir)))
     console.print()
+
+    total_to_dl = end_ep - start_ep + 1
+    tg.notify_batch_start(name, total_to_dl, f"{start_ep}-{end_ep}")
 
     stats = {"ok": 0, "fail": 0, "skip": 0}
     auth_counter = 0
@@ -974,6 +1166,7 @@ def handle_series(client, item, cdn_base, cf_auth, out_dir):
             streams, err = resolve_streams(client, ep["contentId"], series_content_id=content_id)
             if err:
                 error(f"Failed: {err}")
+                tg.notify_download_fail(name, episode=ep_num, reason=str(err))
                 stats["fail"] += 1
                 continue
 
@@ -993,30 +1186,37 @@ def handle_series(client, item, cdn_base, cf_auth, out_dir):
                                              out_file, video_format=s["video_format"])
         if dl_err:
             error(f"FAILED: {dl_err}")
+            tg.notify_download_fail(name, episode=ep_num, reason=str(dl_err))
             stats["fail"] += 1
             continue
 
         success(f"{size / (1024*1024):.1f} MB")
         if out_file.suffix == ".ts":
             convert_ts_to_mp4(out_file)
+        tg.notify_download_ok(name, episode=ep_num, size_mb=size / (1024*1024),
+                              path=str(out_file.name))
         stats["ok"] += 1
         time.sleep(DOWNLOAD_DELAY)
 
-    section("Download Complete")
+    section(t("dl_complete"))
     total_size = sum(f.stat().st_size for f in series_dir.iterdir()
                      if f.suffix in (".mp4", ".ts"))
 
     summary = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
     summary.add_column("Stat", style="bold")
     summary.add_column("Value")
-    summary.add_row("[green]Downloaded[/green]", str(stats["ok"]))
-    summary.add_row("[yellow]Skipped[/yellow]", str(stats["skip"]))
-    summary.add_row("[red]Failed[/red]", str(stats["fail"]))
-    summary.add_row("[blue]Total size[/blue]", f"{total_size / (1024**3):.2f} GB")
-    summary.add_row("[dim]Location[/dim]", str(series_dir))
+    summary.add_row(f"[green]{t('downloaded')}[/green]", str(stats["ok"]))
+    summary.add_row(f"[yellow]{t('skipped')}[/yellow]", str(stats["skip"]))
+    summary.add_row(f"[red]{t('failed')}[/red]", str(stats["fail"]))
+    summary.add_row(f"[blue]{t('total_size')}[/blue]", f"{total_size / (1024**3):.2f} GB")
+    summary.add_row(f"[dim]{t('location')}[/dim]", str(series_dir))
     console.print(summary)
 
-    if confirm("Open download folder?", default=True):
+    tg.notify_batch_complete(name, ok=stats["ok"], failed=stats["fail"],
+                             skipped=stats["skip"],
+                             total_size=f"{total_size / (1024**3):.2f} GB")
+
+    if confirm(t("open_folder"), default=True):
         open_folder(series_dir)
 
 
@@ -1025,7 +1225,7 @@ def handle_movie(client, item, cdn_base, cf_auth, out_dir):
     content_id = item["contentId"]
     name = item.get("name", "Movie")
 
-    section(f"Movie: {name}")
+    section(f"{t('movie')}: {name}")
 
     tags = item.get("tags", "")
     director = item.get("director", "")
@@ -1044,19 +1244,24 @@ def handle_movie(client, item, cdn_base, cf_auth, out_dir):
         console.print(table)
 
     choices = [
-        ("Download", "download the movie file"),
-        ("View details", "full info (cast, description, streams)"),
+        (t("dl_movie"), t("dl_movie_hint")),
+        (t("view_details"), t("view_details_hint")),
+        (t("view_link"), t("view_link_hint")),
     ]
-    idx = select_menu("What do you want to do?", choices)
+    idx = select_menu(t("what_to_do"), choices)
     if idx is None:
         return
 
     if idx == 1:
         show_detail(client, item)
-        if not confirm("Download this movie?", default=False):
+        if not confirm(t("dl_this_movie"), default=False):
             return
 
-    info("Getting streams...")
+    if idx == 2:
+        show_movie_link(client, item, cdn_base, cf_auth)
+        return
+
+    info(t("getting_streams"))
     time.sleep(API_DELAY)
 
     streams, err = resolve_streams(client, content_id)
@@ -1080,13 +1285,13 @@ def handle_movie(client, item, cdn_base, cf_auth, out_dir):
     out_file = out_dir / f"{safe_name}.{s['video_format']}"
 
     if out_file.exists() and out_file.stat().st_size > 1_000_000:
-        warn(f"Already exists: {out_file.name} ({out_file.stat().st_size / 1e6:.1f} MB)")
-        if not confirm("Overwrite?", default=False):
+        warn(t("already_exists", name=out_file.name, size=out_file.stat().st_size / 1e6))
+        if not confirm(t("overwrite"), default=False):
             return
 
-    section(f"Downloading: {name}")
+    section(f"{t('downloading', name=name, s='', e='')}")
     info(f"Format: {s['encode_format']}/{s['video_format']} {s['quality']}")
-    info(f"Output: {out_file}")
+    info(t("output", path=str(out_file)))
     console.print()
 
     size, dl_err = download_file(cdn_base, s["media_code"], cf_auth, s["license"],
@@ -1101,12 +1306,14 @@ def handle_movie(client, item, cdn_base, cf_auth, out_dir):
                                          out_file, video_format=s["video_format"])
     if dl_err:
         error(f"Download failed: {dl_err}")
+        tg.notify_download_fail(name, reason=str(dl_err))
         return
     console.print()
     if out_file.suffix == ".ts":
         out_file = convert_ts_to_mp4(out_file)
-    success(f"Downloaded: {out_file.name} ({size / (1024*1024):.1f} MB)")
-    if confirm("Open download folder?", default=True):
+    success(f"{t('downloaded')}: {out_file.name} ({size / (1024*1024):.1f} MB)")
+    tg.notify_download_ok(name, size_mb=size / (1024*1024), path=str(out_file.name))
+    if confirm(t("open_folder"), default=True):
         open_folder(out_file)
 
 
@@ -1158,6 +1365,206 @@ def show_help():
         border_style="dim",
         padding=(0, 2),
     ))
+
+
+# ─── Telegram notifications ───
+def configure_telegram():
+    section("Telegram Notifications")
+
+    env_path = _env_dir() / ".env"
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
+    enabled = os.environ.get("TELEGRAM_ENABLED", "")
+    is_on = enabled.lower() in ("1", "true", "yes", "si")
+
+    if token and chat_id:
+        status = "[green]Connected[/green]" if is_on else "[yellow]Disabled[/yellow]"
+        console.print(f"  Status: {status}")
+        console.print(f"  Bot token: [dim]{token[:10]}...{token[-4:]}[/dim]")
+        console.print(f"  Chat ID: [dim]{chat_id}[/dim]")
+        console.print()
+
+        choices = [
+            ("Toggle on/off", "enable or disable notifications"),
+            ("Test connection", "send a test message to Telegram"),
+            ("Reconfigure", "change bot token or chat ID"),
+            ("Remove config", "delete Telegram settings from .env"),
+        ]
+        idx = select_menu("Telegram options", choices)
+        if idx is None:
+            return
+
+        if idx == 0:
+            new_val = "0" if is_on else "1"
+            os.environ["TELEGRAM_ENABLED"] = new_val
+            _update_env_var(env_path, "TELEGRAM_ENABLED", new_val)
+            if new_val == "1":
+                success("Telegram notifications enabled")
+            else:
+                info("Telegram notifications disabled")
+            return
+
+        if idx == 1:
+            info("Sending test message...")
+            ok, msg = tg.test_connection()
+            if ok:
+                success("Test message sent! Check your Telegram.")
+            else:
+                error(f"Failed: {msg}")
+            return
+
+        if idx == 3:
+            if confirm("Remove Telegram configuration?", default=False):
+                for var in ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "TELEGRAM_ENABLED"):
+                    os.environ.pop(var, None)
+                    _update_env_var(env_path, var, "")
+                success("Telegram configuration removed")
+            return
+
+    console.print(Panel(
+        "[bold]Link your Telegram to receive download notifications.[/bold]\n\n"
+        "1. Open Telegram and search for [cyan]@BotFather[/cyan]\n"
+        "2. Send [cyan]/newbot[/cyan] and follow the steps to create a bot\n"
+        "3. Copy the bot [bold]token[/bold] (e.g. 123456:ABC-DEF...)\n"
+        "4. Start a chat with your bot and send any message\n"
+        "5. Get your chat ID from [cyan]@userinfobot[/cyan] or the API",
+        title="How to set up",
+        border_style="cyan",
+        padding=(1, 2),
+    ))
+
+    new_token = ask("Bot token (from @BotFather)", token)
+    if not new_token:
+        warn("Cancelled")
+        return
+
+    new_chat_id = ask("Chat ID (numeric)", chat_id)
+    if not new_chat_id:
+        warn("Cancelled")
+        return
+
+    os.environ["TELEGRAM_BOT_TOKEN"] = new_token
+    os.environ["TELEGRAM_CHAT_ID"] = new_chat_id
+    os.environ["TELEGRAM_ENABLED"] = "1"
+
+    _update_env_var(env_path, "TELEGRAM_BOT_TOKEN", new_token)
+    _update_env_var(env_path, "TELEGRAM_CHAT_ID", new_chat_id)
+    _update_env_var(env_path, "TELEGRAM_ENABLED", "1")
+
+    info("Testing connection...")
+    ok, msg = tg.test_connection()
+    if ok:
+        success("Telegram linked! You'll receive notifications for downloads.")
+    else:
+        error(f"Connection failed: {msg}")
+        warn("Check your token and chat ID, then try again.")
+
+
+def _update_env_var(env_path, var, value):
+    if not env_path.exists():
+        env_path.write_text(f"\n# Telegram\n{var}={value}\n")
+        return
+    content = env_path.read_text()
+    import re as _re
+    if _re.search(rf'^{var}=', content, _re.MULTILINE):
+        content = _re.sub(rf'^{var}=.*$', f'{var}={value}', content, flags=_re.MULTILINE)
+    else:
+        if "# Telegram" not in content:
+            content += "\n# Telegram notifications\n"
+        content += f"{var}={value}\n"
+    env_path.write_text(content)
+
+
+# ─── View stream URL without downloading ───
+def show_episode_links(client, item, episodes, cdn_base, cf_auth):
+    content_id = item["contentId"]
+    name = item.get("name", "Series")
+
+    val = ask(t("ep_number", n=len(episodes)))
+    if not val:
+        return
+    try:
+        ep_num = max(1, min(int(val), len(episodes)))
+    except ValueError:
+        ep_num = 1
+
+    ep = None
+    for i, e in enumerate(episodes):
+        n = int(e.get("seriesNumber") or (i + 1))
+        if n == ep_num:
+            ep = e
+            break
+    if not ep:
+        error(f"Episode {ep_num} not found")
+        return
+
+    section(f"{name} - ep {ep_num}")
+
+    ep_name = ep.get("name", "")
+    desc = ep.get("description", "")
+    quality = ep.get("quality", "")
+
+    table = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
+    table.add_column("Key", style="bold cyan")
+    table.add_column("Value")
+    table.add_row("Episode", str(ep_num))
+    if ep_name: table.add_row("Title", ep_name)
+    if quality: table.add_row("Quality", quality)
+    console.print(table)
+
+    if desc:
+        console.print(Panel(desc[:300], title="Synopsis", border_style="dim", padding=(0, 1)))
+
+    info(t("getting_streams"))
+    time.sleep(API_DELAY)
+    streams, err = resolve_streams(client, ep["contentId"], series_content_id=content_id)
+    if err:
+        error(f"Failed: {err}")
+        return
+
+    for s in streams:
+        ext = "ts" if s["video_format"] == "ts" else "mp4"
+        url = f"{cdn_base}/vod/{s['media_code']}_media.{ext}"
+        console.print()
+        console.print(Panel(
+            f"[bold]{s['encode_format']}/{s['video_format']} {s['quality']}[/bold]\n\n"
+            f"[cyan]{url}[/cyan]\n\n"
+            f"Content-Auth: [dim]{cf_auth[:40]}...[/dim]\n"
+            f"Content-License: [dim]{s['license'][:40]}...[/dim]",
+            title=t("stream_url"),
+            border_style="green",
+            padding=(1, 2),
+        ))
+    console.print(f"\n  [dim]{t('copy_hint')}[/dim]\n")
+
+
+def show_movie_link(client, item, cdn_base, cf_auth):
+    content_id = item["contentId"]
+    name = item.get("name", "Movie")
+
+    show_detail(client, item)
+
+    info(t("getting_streams"))
+    time.sleep(API_DELAY)
+    streams, err = resolve_streams(client, content_id)
+    if err:
+        error(f"Failed: {err}")
+        return
+
+    for s in streams:
+        ext = "ts" if s["video_format"] == "ts" else "mp4"
+        url = f"{cdn_base}/vod/{s['media_code']}_media.{ext}"
+        console.print()
+        console.print(Panel(
+            f"[bold]{s['encode_format']}/{s['video_format']} {s['quality']}[/bold]\n\n"
+            f"[cyan]{url}[/cyan]\n\n"
+            f"Content-Auth: [dim]{cf_auth[:40]}...[/dim]\n"
+            f"Content-License: [dim]{s['license'][:40]}...[/dim]",
+            title=t("stream_url"),
+            border_style="green",
+            padding=(1, 2),
+        ))
+    console.print(f"\n  [dim]{t('copy_hint')}[/dim]\n")
 
 
 # ─── Route selected item ───
@@ -1307,12 +1714,33 @@ def run_setup(reason):
 
 # ─── Main ───
 def main():
+    global LANG
     os.system("cls" if os.name == "nt" else "clear")
     banner()
 
     if "--help" in sys.argv or "-h" in sys.argv:
         show_help()
         return
+
+    if "--es" in sys.argv:
+        LANG = "es"
+    elif "--en" in sys.argv:
+        LANG = "en"
+    else:
+        saved = os.environ.get("MAGIA_LANG", "")
+        if saved in ("en", "es"):
+            LANG = saved
+        else:
+            lang_choices = [
+                ("English", "menus and messages in English"),
+                ("Espanol", "menus y mensajes en espanol"),
+            ]
+            lang_idx = select_menu(t("lang_prompt"), lang_choices, back=False)
+            LANG = "es" if lang_idx == 1 else "en"
+            env_path = _env_dir() / ".env"
+            if env_path.exists():
+                _update_env_var(env_path, "MAGIA_LANG", LANG)
+            os.environ["MAGIA_LANG"] = LANG
 
     ready, reason = env_is_ready()
     if not ready:
@@ -1321,87 +1749,89 @@ def main():
     _ensure_ffmpeg()
 
     # Auth
-    section("Authentication")
+    section(t("auth"))
     auth_choices = [
-        ("Free tier (no login)", "auto-activates, access to free content"),
-        ("Login with account", "email + password for premium content"),
+        (t("free_tier"), t("free_hint")),
+        (t("login_account"), t("login_hint")),
     ]
-    auth_idx = select_menu("Select authentication", auth_choices, back=False)
+    auth_idx = select_menu(t("select_auth"), auth_choices, back=False)
     if auth_idx is None:
         return
 
-    info("Connecting to IPTV portal...")
+    info(t("connecting"))
 
     if auth_idx == 0:
         client = IPTVClient()
-        success(f"Connected (free tier) -- userId={client.user_id}")
+        success(f"{t('connected_free')} -- userId={client.user_id}")
     else:
         env_user = os.environ.get("IPTV_USERNAME", "")
         env_pass = os.environ.get("IPTV_PASSWORD", "")
         if env_user and env_pass:
-            info(f"Using credentials from .env ({env_user})")
+            info(t("using_creds", u=env_user))
             username, password = env_user, env_pass
         else:
-            username = ask("Email / username")
+            username = ask(t("email_user"))
             if not username:
                 return
-            password = ask("Encrypted password (from app capture)")
+            password = ask(t("enc_password"))
         if not password:
-            warn("Tip: The app encrypts passwords with DES before sending.")
-            warn("Falling back to free tier...")
+            warn(f"Tip: {t('pwd_tip')}")
+            warn(t("fallback_free"))
             client = IPTVClient()
-            success(f"Connected (free tier) -- userId={client.user_id}")
+            success(f"{t('connected_free')} -- userId={client.user_id}")
         else:
             client = IPTVClient(auto_activate=False)
             result = client.login(username, password)
             if "_error" in result:
-                error(f"Login failed: {result.get('_msg', result.get('_error'))}")
-                warn("Falling back to free tier...")
+                error(t("login_failed", msg=result.get('_msg', result.get('_error'))))
+                warn(t("fallback_free"))
                 client = IPTVClient()
             else:
-                success(f"Logged in -- userId={client.user_id}")
+                success(f"{t('logged_in')} -- userId={client.user_id}")
 
     # CDN auth
-    info("Getting CDN authorization...")
+    info(t("cdn_auth"))
     time.sleep(API_DELAY)
     cdn_base, cf_auth = get_cf_vod_auth(client)
     if cdn_base:
         exp_match = re.search(r"expired=(\d+)", cf_auth or "")
         if exp_match:
             remaining_h = (int(exp_match.group(1)) - time.time()) / 3600
-            success(f"CDN ready -- auth valid for {remaining_h:.1f} hours")
+            success(f"{t('cdn_ready')} -- {t('cdn_valid', h=remaining_h)}")
         else:
-            success("CDN ready")
+            success(t("cdn_ready"))
     else:
-        warn("No Cloudflare CDN found (downloads may not work)")
+        warn(t("cdn_no_cf"))
 
     DEFAULT_OUT.mkdir(parents=True, exist_ok=True)
 
     # Main loop
     while True:
-        section("Main Menu")
+        section(t("main_menu"))
+        tg_label = f"{t('telegram')} [green]ON[/green]" if tg.is_configured() else t("telegram")
         menu = [
-            ("Search",            "find by name"),
-            ("Latest",            "browse newest movies & series"),
-            ("By Genre",          "Action, Comedy, Horror, Anime..."),
-            ("By Year",           "2026, 2025, 2024..."),
-            ("By Country",        "Japan, South Korea, USA..."),
-            ("By Actor/Director", "search by person"),
-            ("Recommendations",   "similar to a title you like"),
-            ("Live TV",           "1000+ channels by category"),
-            ("Help",              "usage guide"),
-            ("Exit",              ""),
+            (t("search"),          t("search_hint")),
+            (t("latest"),          t("latest_hint")),
+            (t("by_genre"),        t("genre_hint")),
+            (t("by_year"),         t("year_hint")),
+            (t("by_country"),      t("country_hint")),
+            (t("by_person"),       t("person_hint")),
+            (t("recommendations"), t("rec_hint")),
+            (t("live_tv"),         t("live_hint")),
+            (tg_label,             t("telegram_hint")),
+            (t("help"),            t("help_hint")),
+            (t("exit"),            ""),
         ]
-        idx = select_menu("Select", menu, back=False)
-        if idx is None or idx == 9:
-            console.print("\n  [dim]Bye![/dim]\n")
+        idx = select_menu(t("select"), menu, back=False)
+        if idx is None or idx == 10:
+            console.print(f"\n  [dim]{t('bye')}[/dim]\n")
             break
 
         if idx == 0:
             item = do_search(client)
             handle_item(client, item, cdn_base, cf_auth, DEFAULT_OUT)
         elif idx == 1:
-            item = browse_catalog(client, query="s", label="Latest")
+            item = browse_catalog(client, query="s", label=t("latest"))
             handle_item(client, item, cdn_base, cf_auth, DEFAULT_OUT)
         elif idx == 2:
             item = browse_by_genre(client)
@@ -1421,6 +1851,8 @@ def main():
         elif idx == 7:
             handle_live(client)
         elif idx == 8:
+            configure_telegram()
+        elif idx == 9:
             show_help()
 
 
