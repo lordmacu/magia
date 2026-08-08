@@ -112,7 +112,6 @@ def select_menu(prompt, choices, back=True):
             message=prompt,
             choices=items,
             pointer=">",
-            show_selected=True,
         ).execute()
         if result == "__back__":
             return None
