@@ -15,6 +15,7 @@ import sys
 import json
 import time
 import shutil
+import subprocess
 from pathlib import Path
 
 import requests
@@ -257,6 +258,87 @@ def download_file(cdn_base, media_code, content_auth, content_license,
                 continue
             return 0, str(e)
     return 0, "max retries"
+
+
+def _ensure_ffmpeg():
+    if shutil.which("ffmpeg"):
+        return True
+    warn("ffmpeg not found, attempting to install...")
+    platform = sys.platform
+    try:
+        if platform == "darwin":
+            if shutil.which("brew"):
+                subprocess.run(["brew", "install", "ffmpeg"], check=True)
+            else:
+                error("Install Homebrew first: https://brew.sh")
+                return False
+        elif platform.startswith("linux"):
+            if shutil.which("apt-get"):
+                subprocess.run(["sudo", "apt-get", "install", "-y", "ffmpeg"], check=True)
+            elif shutil.which("dnf"):
+                subprocess.run(["sudo", "dnf", "install", "-y", "ffmpeg"], check=True)
+            elif shutil.which("pacman"):
+                subprocess.run(["sudo", "pacman", "-S", "--noconfirm", "ffmpeg"], check=True)
+            elif shutil.which("pkg"):
+                subprocess.run(["pkg", "install", "-y", "ffmpeg"], check=True)
+            else:
+                error("Could not detect package manager. Install ffmpeg manually.")
+                return False
+        elif platform == "win32":
+            if shutil.which("choco"):
+                subprocess.run(["choco", "install", "ffmpeg", "-y"], check=True)
+            elif shutil.which("winget"):
+                subprocess.run(["winget", "install", "Gyan.FFmpeg", "--accept-source-agreements"], check=True)
+            else:
+                error("Install ffmpeg manually: https://ffmpeg.org/download.html")
+                return False
+        else:
+            error("Unsupported platform. Install ffmpeg manually.")
+            return False
+    except subprocess.CalledProcessError:
+        error("ffmpeg installation failed. Install it manually.")
+        return False
+    if shutil.which("ffmpeg"):
+        success("ffmpeg installed successfully")
+        return True
+    error("ffmpeg installation did not complete. Install it manually.")
+    return False
+
+
+def convert_ts_to_mp4(ts_path):
+    mp4_path = ts_path.with_suffix(".mp4")
+    info(f"Converting to MP4: {mp4_path.name}")
+    try:
+        result = subprocess.run(
+            ["ffmpeg", "-i", str(ts_path), "-map", "0", "-c", "copy", "-y", str(mp4_path)],
+            capture_output=True, timeout=300,
+        )
+        if result.returncode == 0 and mp4_path.exists():
+            ts_path.unlink()
+            success(f"Converted: {mp4_path.name}")
+            return mp4_path
+        else:
+            warn(f"Conversion failed, keeping .ts file")
+            return ts_path
+    except subprocess.TimeoutExpired:
+        warn("Conversion timed out, keeping .ts file")
+        return ts_path
+    except FileNotFoundError:
+        warn("ffmpeg not available, keeping .ts file")
+        return ts_path
+
+
+def open_folder(path):
+    folder = path if path.is_dir() else path.parent
+    try:
+        if sys.platform == "darwin":
+            subprocess.Popen(["open", str(folder)])
+        elif sys.platform == "win32":
+            subprocess.Popen(["explorer", str(folder)])
+        else:
+            subprocess.Popen(["xdg-open", str(folder)])
+    except Exception:
+        pass
 
 
 def refresh_auth_if_needed(client, err, cdn_base, cf_auth):
@@ -838,6 +920,8 @@ def handle_series(client, item, cdn_base, cf_auth, out_dir):
             continue
 
         success(f"{size / (1024*1024):.1f} MB")
+        if out_file.suffix == ".ts":
+            convert_ts_to_mp4(out_file)
         stats["ok"] += 1
         time.sleep(DOWNLOAD_DELAY)
 
@@ -851,6 +935,8 @@ def handle_series(client, item, cdn_base, cf_auth, out_dir):
   {C.BLUE}Total size:{C.RESET} {total_size / (1024**3):.2f} GB
   {C.DIM}{series_dir}{C.RESET}
 """)
+    if (ask("Open download folder? (Y/n)", "y") or "").lower() != "n":
+        open_folder(series_dir)
 
 
 # ─── Movie handler ───
@@ -937,7 +1023,11 @@ def handle_movie(client, item, cdn_base, cf_auth, out_dir):
         error(f"Download failed: {dl_err}")
         return
     print()
+    if out_file.suffix == ".ts":
+        out_file = convert_ts_to_mp4(out_file)
     success(f"Downloaded: {out_file.name} ({size / (1024*1024):.1f} MB)")
+    if (ask("Open download folder? (Y/n)", "y") or "").lower() != "n":
+        open_folder(out_file)
 
 
 # ─── Help ───
@@ -1129,6 +1219,8 @@ def main():
     ready, reason = env_is_ready()
     if not ready:
         run_setup(reason)
+
+    _ensure_ffmpeg()
 
     # Auth
     section("Authentication")
