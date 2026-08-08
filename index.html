@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Magia — IPTV CLI Tool</title>
+<meta name="description" content="Search, browse, download movies & series, and get live TV streaming URLs from your terminal. Pure Python, no emulator needed.">
+<style>
+@font-face {
+  font-family: 'Mono';
+  src: local('SF Mono'), local('Menlo'), local('Monaco'), local('Consolas');
+  font-display: swap;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0a0c10;
+  --bg-raised: #12151c;
+  --bg-card: #161a24;
+  --text: #c8cdd8;
+  --text-muted: #6b7280;
+  --text-bright: #e8ecf4;
+  --accent: #7c6df0;
+  --accent-dim: #5a4ec0;
+  --accent-glow: rgba(124, 109, 240, 0.15);
+  --cyan: #56d4c0;
+  --green: #5ae07a;
+  --yellow: #f0c850;
+  --red: #e05a6f;
+  --border: #1e2330;
+  --font-display: 'Mono', 'SF Mono', 'Menlo', monospace;
+  --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Mono', 'SF Mono', 'Menlo', 'Consolas', monospace;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  font-family: var(--font-body);
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ─── Ambient glow ─── */
+.glow-orb {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(120px);
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0.35;
+}
+.glow-orb.a { width: 500px; height: 500px; background: var(--accent); top: -100px; left: -100px; }
+.glow-orb.b { width: 400px; height: 400px; background: var(--cyan); bottom: 20%; right: -80px; opacity: 0.15; }
+
+/* ─── Container ─── */
+.wrap { max-width: 960px; margin: 0 auto; padding: 0 1.5rem; }
+
+/* ─── Nav ─── */
+nav {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(10, 12, 16, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+  padding: 0.8rem 0;
+}
+nav .wrap {
+  display: flex; align-items: center; justify-content: space-between;
+}
+nav .logo {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.05em;
+}
+nav .links { display: flex; gap: 1.8rem; }
+nav .links a {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  letter-spacing: 0.03em;
+  transition: color 0.2s;
+}
+nav .links a:hover { color: var(--text-bright); text-decoration: none; }
+
+/* ─── Hero ─── */
+.hero {
+  padding: 6rem 0 4rem;
+  text-align: center;
+}
+.hero h1 {
+  font-family: var(--font-display);
+  font-size: clamp(2.4rem, 6vw, 4rem);
+  font-weight: 700;
+  color: var(--text-bright);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  text-wrap: balance;
+  margin-bottom: 1.2rem;
+}
+.hero h1 .accent { color: var(--accent); }
+.hero p {
+  font-size: 1.15rem;
+  color: var(--text-muted);
+  max-width: 540px;
+  margin: 0 auto 2.5rem;
+  line-height: 1.6;
+}
+.hero .install-cmd {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.8rem 1.2rem;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  color: var(--cyan);
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  position: relative;
+}
+.hero .install-cmd:hover {
+  border-color: var(--accent-dim);
+  box-shadow: 0 0 24px var(--accent-glow);
+}
+.hero .install-cmd .prompt { color: var(--text-muted); user-select: none; }
+.hero .install-cmd .copy-hint {
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.hero .install-cmd.copied .copy-hint { color: var(--green); }
+
+/* OS tabs */
+.os-tabs {
+  display: inline-flex;
+  gap: 0;
+  margin-bottom: 0.75rem;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.os-tab {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  padding: 0.45rem 1.1rem;
+  border: none;
+  background: var(--bg-raised);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+  letter-spacing: 0.02em;
+}
+.os-tab + .os-tab { border-left: 1px solid var(--border); }
+.os-tab.active {
+  background: var(--accent-dim);
+  color: #fff;
+}
+.os-tab:hover:not(.active) { color: var(--text-bright); }
+
+/* ─── Terminal demo ─── */
+.terminal-wrap {
+  max-width: 720px;
+  margin: 3rem auto 0;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5), 0 0 60px var(--accent-glow);
+}
+.terminal-bar {
+  background: #1a1e28;
+  padding: 0.6rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.terminal-dot { width: 10px; height: 10px; border-radius: 50%; }
+.terminal-dot.r { background: #e05a6f; }
+.terminal-dot.y { background: #f0c850; }
+.terminal-dot.g { background: #5ae07a; }
+.terminal-bar .title {
+  flex: 1;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.terminal-body {
+  background: var(--bg);
+  padding: 1.2rem 1.4rem;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  line-height: 1.55;
+  min-height: 340px;
+  overflow-x: auto;
+}
+.terminal-body .line { white-space: pre; }
+.terminal-body .t-cyan { color: var(--cyan); }
+.terminal-body .t-green { color: var(--green); }
+.terminal-body .t-yellow { color: var(--yellow); }
+.terminal-body .t-red { color: var(--red); }
+.terminal-body .t-accent { color: var(--accent); }
+.terminal-body .t-dim { color: var(--text-muted); }
+.terminal-body .t-bold { color: var(--text-bright); font-weight: 600; }
+.terminal-body .t-white { color: var(--text-bright); }
+.terminal-body .cursor {
+  display: inline-block;
+  width: 8px;
+  height: 15px;
+  background: var(--accent);
+  vertical-align: text-bottom;
+  animation: blink 1s step-end infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+/* ─── Section ─── */
+section { padding: 5rem 0; }
+section + section { border-top: 1px solid var(--border); }
+
+.section-label {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 0.8rem;
+}
+.section-title {
+  font-family: var(--font-body);
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: var(--text-bright);
+  margin-bottom: 1rem;
+  line-height: 1.3;
+  text-wrap: balance;
+}
+.section-desc {
+  color: var(--text-muted);
+  max-width: 560px;
+  margin-bottom: 2.5rem;
+  line-height: 1.65;
+}
+
+/* ─── Feature grid ─── */
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.2rem;
+}
+.feature-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.5rem;
+  transition: border-color 0.25s, transform 0.25s;
+}
+.feature-card:hover {
+  border-color: var(--accent-dim);
+  transform: translateY(-2px);
+}
+.feature-card .icon {
+  font-size: 1.4rem;
+  margin-bottom: 0.75rem;
+  display: block;
+}
+.feature-card h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-bright);
+  margin-bottom: 0.4rem;
+}
+.feature-card p {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* ─── How it works (protocol) ─── */
+.protocol-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-width: 640px;
+}
+.flow-step {
+  display: grid;
+  grid-template-columns: 2.5rem 1fr;
+  gap: 1rem;
+  align-items: start;
+  padding: 1rem 0;
+}
+.flow-step .num {
+  width: 2.2rem; height: 2.2rem;
+  border-radius: 6px;
+  background: var(--accent-glow);
+  border: 1px solid var(--accent-dim);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.flow-step h4 {
+  font-size: 0.95rem;
+  color: var(--text-bright);
+  margin-bottom: 0.25rem;
+}
+.flow-step p {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.flow-arrow {
+  margin-left: 0.95rem;
+  width: 1px;
+  height: 1.2rem;
+  background: var(--border);
+}
+
+/* ─── Code block ─── */
+.code-block {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.2rem 1.4rem;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  line-height: 1.6;
+  overflow-x: auto;
+  margin: 1rem 0;
+  color: var(--text);
+}
+
+/* ─── Install section ─── */
+.install-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+@media (max-width: 640px) {
+  .install-options { grid-template-columns: 1fr; }
+}
+.install-option {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.5rem;
+}
+.install-option h3 {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--cyan);
+  margin-bottom: 0.6rem;
+  letter-spacing: 0.03em;
+}
+.install-option p {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+
+/* ─── Env table ─── */
+.env-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  overflow-x: auto;
+  display: block;
+}
+.env-table th {
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 0.6rem 0.8rem;
+  border-bottom: 1px solid var(--border);
+}
+.env-table td {
+  padding: 0.55rem 0.8rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.env-table td:first-child {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--cyan);
+  white-space: nowrap;
+}
+.env-table .req {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+.env-table .req.y { background: rgba(124, 109, 240, 0.15); color: var(--accent); }
+.env-table .req.n { background: rgba(107, 114, 128, 0.15); color: var(--text-muted); }
+
+/* ─── Tech diagram ─── */
+.arch-diagram {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 2rem;
+  margin: 2rem 0;
+  overflow-x: auto;
+}
+.arch-diagram pre {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre;
+  margin: 0;
+}
+
+/* ─── Footer ─── */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 2.5rem 0;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+footer a { color: var(--text-muted); }
+footer a:hover { color: var(--accent); }
+
+/* ─── Responsive ─── */
+@media (max-width: 640px) {
+  .hero { padding: 4rem 0 3rem; }
+  .hero h1 { font-size: 2rem; }
+  .hero .install-cmd { font-size: 0.78rem; flex-wrap: wrap; }
+  section { padding: 3rem 0; }
+  .feature-grid { grid-template-columns: 1fr; }
+  nav .links { gap: 1rem; }
+  nav .links a { font-size: 0.78rem; }
+  .terminal-body { font-size: 0.72rem; padding: 1rem; min-height: 280px; }
+}
+
+/* ─── Prefers reduced motion ─── */
+@media (prefers-reduced-motion: reduce) {
+  .cursor { animation: none !important; opacity: 1; }
+  .feature-card { transition: none; }
+  html { scroll-behavior: auto; }
+}
+</style>
+</head>
+<body>
+
+<div class="glow-orb a"></div>
+<div class="glow-orb b"></div>
+
+<nav>
+  <div class="wrap">
+    <div class="logo">magia</div>
+    <div class="links">
+      <a href="#features">Features</a>
+      <a href="#install">Install</a>
+      <a href="#how">How It Works</a>
+      <a href="https://github.com/lordmacu/magia">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ════════ HERO ════════ -->
+<header class="hero">
+  <div class="wrap">
+    <h1>Your terminal is a<br><span class="accent">streaming portal.</span></h1>
+    <p>Search 44,000+ titles, download movies & series, browse live TV channels — all from a single Python CLI. No emulator, no Frida, no APK.</p>
+
+    <div class="os-tabs" role="tablist">
+      <button class="os-tab active" role="tab" aria-selected="true" onclick="switchOS('unix', this)">Linux / macOS</button>
+      <button class="os-tab" role="tab" aria-selected="false" onclick="switchOS('win', this)">Windows</button>
+    </div>
+    <div class="install-cmd" id="install-unix" onclick="copyInstall(this)" role="button" tabindex="0" aria-label="Copy install command">
+      <span class="prompt">$</span>
+      <span class="cmd-text">curl -sL https://raw.githubusercontent.com/lordmacu/magia/main/install.sh | bash</span>
+      <span class="copy-hint">click to copy</span>
+    </div>
+    <div class="install-cmd" id="install-win" style="display:none" onclick="copyInstall(this)" role="button" tabindex="0" aria-label="Copy install command">
+      <span class="prompt">&gt;</span>
+      <span class="cmd-text">powershell -c "irm https://raw.githubusercontent.com/lordmacu/magia/main/install.ps1 | iex"</span>
+      <span class="copy-hint">click to copy</span>
+    </div>
+
+    <!-- Terminal demo -->
+    <div class="terminal-wrap">
+      <div class="terminal-bar">
+        <div class="terminal-dot r"></div>
+        <div class="terminal-dot y"></div>
+        <div class="terminal-dot g"></div>
+        <div class="terminal-bar title">magia — python3</div>
+      </div>
+      <div class="terminal-body" id="terminal"></div>
+    </div>
+  </div>
+</header>
+
+<!-- ════════ FEATURES ════════ -->
+<section id="features">
+  <div class="wrap">
+    <div class="section-label">Features</div>
+    <h2 class="section-title">Everything the app does, without the app.</h2>
+    <p class="section-desc">Magia reverse-engineers the full IPTV portal protocol — encrypted API calls, CDN auth tokens, device fingerprinting — and reimplements it in pure Python.</p>
+
+    <div class="feature-grid">
+      <div class="feature-card">
+        <span class="icon">&#x1F50D;</span>
+        <h3>Search &amp; Browse</h3>
+        <p>Search by name, genre, year, country, or actor. Browse the latest releases or get recommendations based on what you like.</p>
+      </div>
+      <div class="feature-card">
+        <span class="icon">&#x1F3AC;</span>
+        <h3>Download Movies</h3>
+        <p>View full details — cast, score, description — then download in your preferred quality. H.264/MP4 preferred, H.265/TS fallback.</p>
+      </div>
+      <div class="feature-card">
+        <span class="icon">&#x1F4FA;</span>
+        <h3>Download Series</h3>
+        <p>Pick all episodes, a range, or just one. Auto-organized in named folders: <code>Dragon_Ball/ep001.mp4</code>.</p>
+      </div>
+      <div class="feature-card">
+        <span class="icon">&#x1F4E1;</span>
+        <h3>Live TV</h3>
+        <p>Browse 1,000+ channels across 30+ categories. Get stream credentials for your external player.</p>
+      </div>
+      <div class="feature-card">
+        <span class="icon">&#x1F512;</span>
+        <h3>Zero Secrets in Code</h3>
+        <p>All credentials, keys, and device fingerprints live in <code>.env</code>. Nothing hardcoded, nothing committed.</p>
+      </div>
+      <div class="feature-card">
+        <span class="icon">&#x26A1;</span>
+        <h3>Rate-Limit Aware</h3>
+        <p>Respects API rate limits (1.5s between calls), auto-refreshes CDN tokens every 30 episodes, recovers from expired sessions.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ INSTALL ════════ -->
+<section id="install">
+  <div class="wrap">
+    <div class="section-label">Installation</div>
+    <h2 class="section-title">One command. Ready in 30 seconds.</h2>
+    <p class="section-desc">The installer checks Python, installs dependencies, and walks you through configuring your credentials interactively.</p>
+
+    <div class="install-options">
+      <div class="install-option">
+        <h3>Quick Install</h3>
+        <p>Downloads, configures, creates the <code>magia</code> command.</p>
+        <div class="code-block">curl -sL https://raw.githubusercontent.com/lordmacu/magia/main/install.sh | bash</div>
+      </div>
+      <div class="install-option">
+        <h3>Manual Install</h3>
+        <p>Clone, install deps, configure <code>.env</code> yourself.</p>
+        <div class="code-block">git clone https://github.com/lordmacu/magia.git
+cd magia
+pip install pycryptodome requests
+cp .env.example .env
+python3 magia.py</div>
+      </div>
+    </div>
+
+    <h3 style="font-size:1.1rem; color:var(--text-bright); margin:2.5rem 0 1rem;">Configuration</h3>
+    <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1.2rem;">All settings in <code>.env</code> — the app won't start without it.</p>
+    <div style="overflow-x:auto;">
+    <table class="env-table">
+      <thead>
+        <tr><th>Variable</th><th></th><th>Description</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>IPTV_3DES_KEY</td><td><span class="req y">required</span></td><td>3DES encryption key (48 hex chars)</td></tr>
+        <tr><td>IPTV_HOSTS</td><td><span class="req y">required</span></td><td>API hosts, comma-separated</td></tr>
+        <tr><td>IPTV_APP_ID</td><td><span class="req y">required</span></td><td>APK package identifier</td></tr>
+        <tr><td>IPTV_APK_VERSION</td><td><span class="req y">required</span></td><td>APK internal version code</td></tr>
+        <tr><td>IPTV_DEVICE_SN</td><td><span class="req y">required</span></td><td>Device serial number</td></tr>
+        <tr><td>IPTV_DEVICE_DRM_ID</td><td><span class="req y">required</span></td><td>DRM device identifier</td></tr>
+        <tr><td>IPTV_DEVICE_TOKEN</td><td><span class="req y">required</span></td><td>Firebase push token</td></tr>
+        <tr><td>IPTV_DEVICE_RESERVE1</td><td><span class="req y">required</span></td><td>Reserved device field</td></tr>
+        <tr><td>IPTV_USERNAME</td><td><span class="req n">optional</span></td><td>Account email for premium tier</td></tr>
+        <tr><td>IPTV_PASSWORD</td><td><span class="req n">optional</span></td><td>Encrypted password</td></tr>
+        <tr><td>IPTV_DOWNLOAD_DIR</td><td><span class="req n">optional</span></td><td>Download folder (default: downloads)</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ HOW IT WORKS ════════ -->
+<section id="how">
+  <div class="wrap">
+    <div class="section-label">Under the Hood</div>
+    <h2 class="section-title">Reverse-engineered from the ground up.</h2>
+    <p class="section-desc">The IPTV app encrypts every API call with 3DES and speaks a proprietary binary protocol for CDN auth. Magia reimplements all of it in ~800 lines of Python.</p>
+
+    <div class="protocol-flow">
+      <div class="flow-step">
+        <div class="num">1</div>
+        <div>
+          <h4>Encrypt &amp; Authenticate</h4>
+          <p>Every request body is JSON → 3DES-ECB encrypted → Base64 → Hex encoded. Device fingerprint fields are injected into every call. The server issues a session token on activation.</p>
+        </div>
+      </div>
+      <div class="flow-arrow"></div>
+      <div class="flow-step">
+        <div class="num">2</div>
+        <div>
+          <h4>Search &amp; Resolve Content</h4>
+          <p>Search returns content IDs from a 44,000-item catalog. For movies, <code>play_vod()</code> returns stream metadata — media codes, licenses, available formats. For series, <code>episodes()</code> lists all episodes first.</p>
+        </div>
+      </div>
+      <div class="flow-arrow"></div>
+      <div class="flow-step">
+        <div class="num">3</div>
+        <div>
+          <h4>Get CDN Authorization</h4>
+          <p><code>get_slb()</code> returns Cloudflare CDN auth tokens — signed URLs with expiration timestamps (~48h). These tokens work across sessions and auto-refresh every 30 episodes.</p>
+        </div>
+      </div>
+      <div class="flow-arrow"></div>
+      <div class="flow-step">
+        <div class="num">4</div>
+        <div>
+          <h4>Direct Download</h4>
+          <p>A simple HTTP GET to the Cloudflare CDN with <code>Content-Auth</code> and <code>Content-License</code> headers streams the raw MP4/TS file. No proxy, no player app — just bytes on disk.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="arch-diagram">
+      <pre><span style="color:var(--cyan)">┌──────────────┐         ┌───────────────┐         ┌──────────────────┐</span>
+<span style="color:var(--cyan)">│</span>  <span style="color:var(--text-bright)">magia.py</span>    <span style="color:var(--cyan)">│</span>         <span style="color:var(--cyan)">│</span> <span style="color:var(--text-bright)">iptv_client</span>  <span style="color:var(--cyan)">│</span>         <span style="color:var(--cyan)">│</span>   <span style="color:var(--text-bright)">Portal API</span>    <span style="color:var(--cyan)">│</span>
+<span style="color:var(--cyan)">│</span>  Interactive  <span style="color:var(--cyan)">│</span> <span style="color:var(--text-muted)">──json──▶</span> <span style="color:var(--cyan)">│</span> encrypt()    <span style="color:var(--cyan)">│</span> <span style="color:var(--text-muted)">──3DES──▶</span> <span style="color:var(--cyan)">│</span>  /portalCore/*  <span style="color:var(--cyan)">│</span>
+<span style="color:var(--cyan)">│</span>  CLI menus    <span style="color:var(--cyan)">│</span> <span style="color:var(--text-muted)">◀──────</span>  <span style="color:var(--cyan)">│</span> decrypt()    <span style="color:var(--cyan)">│</span> <span style="color:var(--text-muted)">◀───────</span>  <span style="color:var(--cyan)">│</span>  3DES responses <span style="color:var(--cyan)">│</span>
+<span style="color:var(--cyan)">└──────┬───────┘</span>         <span style="color:var(--cyan)">└───────────────┘</span>         <span style="color:var(--cyan)">└──────────────────┘</span>
+       <span style="color:var(--text-muted)">│</span>
+       <span style="color:var(--text-muted)">│ media_code</span>
+       <span style="color:var(--text-muted)">│ + license</span>
+       <span style="color:var(--text-muted)">│ + cf_auth</span>
+       <span style="color:var(--text-muted)">▼</span>
+<span style="color:var(--green)">┌──────────────┐</span>
+<span style="color:var(--green)">│</span> <span style="color:var(--text-bright)">Cloudflare</span>   <span style="color:var(--green)">│</span>
+<span style="color:var(--green)">│</span> <span style="color:var(--text-bright)">CDN</span>          <span style="color:var(--green)">│</span>  GET /vod/{id}_media.mp4
+<span style="color:var(--green)">│</span>              <span style="color:var(--green)">│</span>  Headers: Content-Auth, Content-License
+<span style="color:var(--green)">│</span>  <span style="color:var(--text-muted)">→ .mp4/.ts</span>  <span style="color:var(--green)">│</span>  → binary stream to disk
+<span style="color:var(--green)">└──────────────┘</span></pre>
+    </div>
+
+    <h3 style="font-size:1.1rem; color:var(--text-bright); margin:2.5rem 0 0.5rem;">Reverse Engineering Stack</h3>
+    <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1.5rem;">How the protocol was discovered — from APK to pure Python.</p>
+
+    <div class="feature-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+      <div class="feature-card">
+        <h3 style="color:var(--cyan);">jadx</h3>
+        <p>Decompiled the APK to Java source. Found the 3DES crypto path, OkHttp interceptors, and device fingerprint injection.</p>
+      </div>
+      <div class="feature-card">
+        <h3 style="color:var(--cyan);">apktool</h3>
+        <p>Extracted resources, smali code, and the native .so libraries that contain the crypto key material.</p>
+      </div>
+      <div class="feature-card">
+        <h3 style="color:var(--cyan);">Frida</h3>
+        <p>Runtime instrumentation on a rooted emulator. Hooked NativeJni.Call(), OkHttp, java.net.URL to capture the live protocol.</p>
+      </div>
+      <div class="feature-card">
+        <h3 style="color:var(--cyan);">Python</h3>
+        <p>Full protocol reimplementation: 3DES crypto, device spoofing, CDN auth, VOD downloads. ~800 lines, zero native deps.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ FOOTER ════════ -->
+<footer>
+  <div class="wrap">
+    <p><a href="https://github.com/lordmacu/magia">GitHub</a>&ensp;&middot;&ensp;Built by <a href="https://github.com/lordmacu">lordmacu</a>&ensp;&middot;&ensp;For educational and research purposes only</p>
+  </div>
+</footer>
+
+<script>
+// ─── OS tab switcher ───
+function switchOS(os, btn) {
+  document.querySelectorAll('.os-tab').forEach(t => { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
+  btn.classList.add('active');
+  btn.setAttribute('aria-selected', 'true');
+  document.getElementById('install-unix').style.display = os === 'unix' ? '' : 'none';
+  document.getElementById('install-win').style.display = os === 'win' ? '' : 'none';
+}
+// Auto-detect OS
+if (navigator.platform && navigator.platform.indexOf('Win') > -1) {
+  switchOS('win', document.querySelectorAll('.os-tab')[1]);
+}
+
+// ─── Copy install command ───
+function copyInstall(el) {
+  const cmd = el.querySelector('.cmd-text').textContent;
+  navigator.clipboard.writeText(cmd).then(() => {
+    el.classList.add('copied');
+    el.querySelector('.copy-hint').textContent = 'copied!';
+    setTimeout(() => {
+      el.classList.remove('copied');
+      el.querySelector('.copy-hint').textContent = 'click to copy';
+    }, 2000);
+  });
+}
+
+// ─── Terminal animation ───
+const termEl = document.getElementById('terminal');
+const lines = [
+  { text: '', delay: 300 },
+  { text: '  <span class="t-cyan t-bold">  ███╗   ███╗ █████╗  ██████╗ ██╗ █████╗</span>', delay: 30 },
+  { text: '  <span class="t-cyan t-bold">  ████╗ ████║██╔══██╗██╔════╝ ██║██╔══██╗</span>', delay: 30 },
+  { text: '  <span class="t-cyan t-bold">  ██╔████╔██║███████║██║  ███╗██║███████║</span>', delay: 30 },
+  { text: '  <span class="t-cyan t-bold">  ██║╚██╔╝██║██╔══██║██║   ██║██║██╔══██║</span>', delay: 30 },
+  { text: '  <span class="t-cyan t-bold">  ██║ ╚═╝ ██║██║  ██║╚██████╔╝██║██║  ██║</span>', delay: 30 },
+  { text: '  <span class="t-cyan t-bold">  ╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝╚═╝  ╚═╝</span>', delay: 30 },
+  { text: '', delay: 100 },
+  { text: '  <span class="t-dim">IPTV Media Tool — Search, Stream & Download</span>', delay: 400 },
+  { text: '', delay: 200 },
+  { text: '  <span class="t-cyan t-bold">┌────────────────────────────────────────────┐</span>', delay: 60 },
+  { text: '  <span class="t-cyan t-bold">│ Authentication                             │</span>', delay: 60 },
+  { text: '  <span class="t-cyan t-bold">└────────────────────────────────────────────┘</span>', delay: 200 },
+  { text: '', delay: 50 },
+  { text: '  <span class="t-accent"> 1</span>  Free tier (no login)  <span class="t-dim">auto-activates</span>', delay: 60 },
+  { text: '  <span class="t-accent"> 2</span>  Login with account    <span class="t-dim">email + password</span>', delay: 200 },
+  { text: '', delay: 100 },
+  { text: '  <span class="t-accent">></span> Select authentication: <span class="t-white">1</span>', delay: 600 },
+  { text: '', delay: 100 },
+  { text: '  <span class="t-cyan">i</span>  Connecting to IPTV portal...', delay: 800 },
+  { text: '  <span class="t-green">✓</span>  Connected (free tier) — userId=<span class="t-dim">a7c2e...</span>', delay: 400 },
+  { text: '  <span class="t-cyan">i</span>  Getting CDN authorization...', delay: 600 },
+  { text: '  <span class="t-green">✓</span>  CDN ready — auth valid for <span class="t-green">47.2 hours</span>', delay: 500 },
+  { text: '', delay: 200 },
+  { text: '  <span class="t-cyan t-bold">┌────────────────────────────────────────────┐</span>', delay: 60 },
+  { text: '  <span class="t-cyan t-bold">│ Main Menu                                 │</span>', delay: 60 },
+  { text: '  <span class="t-cyan t-bold">└────────────────────────────────────────────┘</span>', delay: 200 },
+  { text: '', delay: 50 },
+  { text: '  <span class="t-accent"> 1</span>  Search            <span class="t-dim">search by name</span>', delay: 40 },
+  { text: '  <span class="t-accent"> 2</span>  Latest            <span class="t-dim">newest content</span>', delay: 40 },
+  { text: '  <span class="t-accent"> 3</span>  By Genre           <span class="t-dim">Action, Comedy...</span>', delay: 40 },
+  { text: '  <span class="t-accent"> 4</span>  By Year            <span class="t-dim">2026, 2025...</span>', delay: 40 },
+  { text: '  <span class="t-accent"> 5</span>  Live TV            <span class="t-dim">1000+ channels</span>', delay: 100 },
+  { text: '', delay: 300 },
+  { text: '  <span class="t-accent">></span> Choose: <span class="t-white">1</span>', delay: 500 },
+  { text: '  <span class="t-accent">></span> Search: <span class="t-white">dragon ball</span>', delay: 800 },
+  { text: '  <span class="t-cyan">i</span>  Searching...', delay: 600 },
+  { text: '  <span class="t-green">✓</span>  Found <span class="t-green">15</span> results', delay: 400 },
+  { text: '', delay: 100 },
+  { text: '  <span class="t-accent"> 1</span>  <span class="t-cyan">[SERIE]</span> Dragon Ball                 <span class="t-dim">1986 | ★8.6</span>', delay: 60 },
+  { text: '  <span class="t-accent"> 2</span>  <span class="t-green">[PELI]</span>  Dragon Ball Super: Broly    <span class="t-dim">2018 | ★7.9</span>', delay: 60 },
+  { text: '  <span class="t-accent"> 3</span>  <span class="t-green">[PELI]</span>  Dragon Ball Super: Hero     <span class="t-dim">2022 | ★7.3</span>', delay: 60 },
+  { text: '  <span class="t-accent"> 4</span>  <span class="t-cyan">[SERIE]</span> Dragon Ball Z               <span class="t-dim">1989 | ★9.0</span>', delay: 60 },
+  { text: '  <span class="t-accent"> 5</span>  <span class="t-cyan">[SERIE]</span> Dragon Ball Super           <span class="t-dim">2015 | ★8.2</span>', delay: 200 },
+  { text: '', delay: 200 },
+  { text: '  <span class="t-accent">></span> Select: <span class="t-white">1</span>', delay: 600 },
+  { text: '', delay: 200 },
+  { text: '  <span class="t-cyan t-bold">┌────────────────────────────────────────────┐</span>', delay: 60 },
+  { text: '  <span class="t-cyan t-bold">│ Series: Dragon Ball                       │</span>', delay: 60 },
+  { text: '  <span class="t-cyan t-bold">└────────────────────────────────────────────┘</span>', delay: 200 },
+  { text: '  <span class="t-green">✓</span>  Found <span class="t-green">153</span> episodes', delay: 400 },
+  { text: '', delay: 100 },
+  { text: '  <span class="t-accent"> 1</span>  Download ALL       <span class="t-dim">153 eps -> Dragon_Ball/</span>', delay: 60 },
+  { text: '  <span class="t-accent"> 2</span>  Download a range   <span class="t-dim">e.g. 1-10</span>', delay: 60 },
+  { text: '  <span class="t-accent"> 3</span>  Download single    <span class="t-dim">pick one</span>', delay: 60 },
+  { text: '  <span class="t-accent"> 4</span>  View details       <span class="t-dim">full info</span>', delay: 200 },
+  { text: '', delay: 200 },
+  { text: '  <span class="t-accent">></span> Choose: <span class="t-white">2</span>', delay: 500 },
+  { text: '  <span class="t-accent">></span> From episode: <span class="t-white">1</span>', delay: 400 },
+  { text: '  <span class="t-accent">></span> To episode: <span class="t-white">3</span>', delay: 500 },
+  { text: '', delay: 200 },
+  { text: '  <span class="t-cyan t-bold">┌────────────────────────────────────────────┐</span>', delay: 60 },
+  { text: '  <span class="t-cyan t-bold">│ Downloading: Dragon Ball ep 1-3           │</span>', delay: 60 },
+  { text: '  <span class="t-cyan t-bold">└────────────────────────────────────────────┘</span>', delay: 300 },
+  { text: '', delay: 100 },
+  { text: '  <span class="t-cyan">[001/153]</span> Dragon Ball ep 1', delay: 400 },
+  { text: '  <span class="t-green">████████████████████████████████████░░░</span> <span class="t-white">92.1%</span> <span class="t-dim">95.3/103.5 MB  4.2 MB/s</span>', delay: 1200 },
+  { text: '  <span class="t-green">✓</span>  <span class="t-green">103.5 MB</span> saved to Dragon_Ball/ep001.mp4', delay: 500 },
+  { text: '', delay: 100 },
+  { text: '  <span class="t-cyan">[002/153]</span> Dragon Ball ep 2', delay: 400 },
+  { text: '  <span class="t-green">██████████████████████████████████████</span> <span class="t-white">100%</span>  <span class="t-dim">98.7/98.7 MB   5.1 MB/s</span>', delay: 1000 },
+  { text: '  <span class="t-green">✓</span>  <span class="t-green">98.7 MB</span> saved to Dragon_Ball/ep002.mp4<span class="cursor"></span>', delay: 0 },
+];
+
+let currentLine = 0;
+function renderLine() {
+  if (currentLine >= lines.length) return;
+  const line = lines[currentLine];
+  const div = document.createElement('div');
+  div.className = 'line';
+  div.innerHTML = line.text;
+  termEl.appendChild(div);
+  currentLine++;
+  if (currentLine < lines.length) {
+    setTimeout(renderLine, lines[currentLine].delay);
+  }
+  termEl.scrollTop = termEl.scrollHeight;
+}
+
+const observer = new IntersectionObserver((entries) => {
+  if (entries[0].isIntersecting) {
+    observer.disconnect();
+    setTimeout(renderLine, 500);
+  }
+}, { threshold: 0.3 });
+observer.observe(document.querySelector('.terminal-wrap'));
+</script>
+
+</body>
+</html>
