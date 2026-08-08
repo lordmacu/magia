@@ -38,7 +38,12 @@ class C:
 
 API_DELAY = 1.5
 DOWNLOAD_DELAY = 0.5
-DEFAULT_OUT = Path(__file__).parent / os.environ.get("IPTV_DOWNLOAD_DIR", "downloads")
+def _env_dir():
+    if (Path.cwd() / ".env").exists():
+        return Path.cwd()
+    return Path(__file__).parent
+
+DEFAULT_OUT = _env_dir() / os.environ.get("IPTV_DOWNLOAD_DIR", "downloads")
 
 GENRES = [
     "Action", "Drama", "Adventure", "Crime", "Sci-Fi", "Cartoon", "Comedy",
@@ -1002,7 +1007,7 @@ OPTIONAL_VARS = [
 ]
 
 def env_is_ready():
-    env_path = Path(__file__).parent / ".env"
+    env_path = _env_dir() / ".env"
     if not env_path.exists():
         return False, "missing"
     for var, _ in REQUIRED_VARS:
@@ -1011,7 +1016,7 @@ def env_is_ready():
     return True, "ok"
 
 def run_setup(reason):
-    env_path = Path(__file__).parent / ".env"
+    env_path = _env_dir() / ".env"
 
     section("First-Run Setup")
 
@@ -1027,7 +1032,7 @@ def run_setup(reason):
         print()
         choice = ask("Choose (1/2)", "1")
         if choice == "2":
-            example = Path(__file__).parent / ".env.example"
+            example = _env_dir() / ".env.example"
             if example.exists():
                 import shutil as _sh
                 _sh.copy2(example, env_path)

@@ -30,9 +30,18 @@ from pathlib import Path
 requests.packages.urllib3.disable_warnings()
 
 # ─────────────────────────────  .env loader  ─────────────────────────────
+def _find_env():
+    cwd = Path.cwd() / ".env"
+    if cwd.exists():
+        return cwd
+    script = Path(__file__).parent / ".env"
+    if script.exists():
+        return script
+    return None
+
 def _load_dotenv():
-    env_path = Path(__file__).parent / ".env"
-    if not env_path.exists():
+    env_path = _find_env()
+    if not env_path:
         return
     for line in env_path.read_text().splitlines():
         line = line.strip()
