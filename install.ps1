@@ -78,10 +78,17 @@ if (Test-Path "$INSTALL_DIR\.git") {
     Info "Existing installation found, updating..."
     Push-Location $INSTALL_DIR
     try {
-        git pull --ff-only origin $BRANCH 2>&1 | Out-Null
+        git fetch origin $BRANCH 2>&1 | Out-Null
+        git reset --hard "origin/$BRANCH" 2>&1 | Out-Null
         Ok "Updated"
     } catch {
-        Warn "git pull failed, continuing with current version"
+        Warn "git update failed, re-downloading..."
+        Pop-Location
+        Remove-Item $INSTALL_DIR -Recurse -Force -ErrorAction SilentlyContinue
+        git clone --depth 1 -b $BRANCH $REPO_URL $INSTALL_DIR 2>&1 | Out-Null
+        if (-not $?) { Fail "Could not clone. Check the URL: $REPO_URL" }
+        Push-Location $INSTALL_DIR
+        Ok "Re-downloaded"
     }
     Pop-Location
 } elseif (Get-Command git -ErrorAction SilentlyContinue) {

@@ -99,8 +99,15 @@ step "Descargando Magia"
 if [ -d "$INSTALL_DIR/.git" ]; then
     info "Directorio existente, actualizando..."
     cd "$INSTALL_DIR"
-    git pull --ff-only origin "$BRANCH" 2>/dev/null || {
-        warn "git pull falló, continuando con versión actual"
+    git fetch origin "$BRANCH" 2>/dev/null
+    git reset --hard "origin/$BRANCH" 2>/dev/null || {
+        warn "git update falló, re-descargando..."
+        cd /tmp
+        rm -rf "$INSTALL_DIR"
+        git clone --depth 1 -b "$BRANCH" "$REPO_URL" "$INSTALL_DIR" 2>/dev/null || {
+            fail "No se pudo clonar. Verifica la URL: $REPO_URL"
+        }
+        cd "$INSTALL_DIR"
     }
     ok "Actualizado"
 elif command -v git &>/dev/null; then
