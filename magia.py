@@ -131,6 +131,9 @@ STRINGS = {
         "vlc_install_fail": "Could not install VLC automatically. Install it manually: https://www.videolan.org",
         "select_stream": "Select stream quality",
         "select_ep_stream": "Which episode to stream? (1-{n})",
+        "subs_loaded": "Subtitles loaded: {langs}",
+        "subs_available": "Available subtitles",
+        "no_subs": "No subtitles available",
         "email_user": "Email / username",
         "enc_password": "Encrypted password (from app capture)",
         "using_creds": "Using credentials from .env ({u})",
@@ -225,6 +228,9 @@ STRINGS = {
         "vlc_install_fail": "No se pudo instalar VLC automaticamente. Instalalo manualmente: https://www.videolan.org",
         "select_stream": "Selecciona calidad del stream",
         "select_ep_stream": "Que episodio reproducir? (1-{n})",
+        "subs_loaded": "Subtitulos cargados: {langs}",
+        "subs_available": "Subtitulos disponibles",
+        "no_subs": "Sin subtitulos disponibles",
         "email_user": "Email / usuario",
         "enc_password": "Contrasena encriptada (capturada de la app)",
         "using_creds": "Usando credenciales del .env ({u})",
@@ -408,11 +414,23 @@ def resolve_streams(client, content_id, series_content_id=""):
                 "video_format": m.get("videoFormat", "mp4"),
                 "encode_format": m.get("encodeFormat", "h264"),
                 "quality": m.get("quality", "?"),
+                "audio": m.get("audioInfo", ""),
             })
     if not streams:
         return None, "No streams"
     streams.sort(key=lambda s: (0 if s["encode_format"] == "h264" else 1))
-    return streams, None
+
+    subtitles = []
+    for sub in ep_data.get("subtitleList", []):
+        files = sub.get("file", [])
+        if files and files[0].get("url"):
+            subtitles.append({
+                "lang": sub.get("language", "?"),
+                "url": files[0]["url"],
+                "type": files[0].get("fileType", "srt"),
+            })
+
+    return streams, None, subtitles
 
 
 def download_file(cdn_base, media_code, content_auth, content_license,
@@ -1208,12 +1226,12 @@ def handle_series(client, item, cdn_base, cf_auth, out_dir):
             time.sleep(API_DELAY)
 
         time.sleep(API_DELAY)
-        streams, err = resolve_streams(client, ep["contentId"], series_content_id=content_id)
+        streams, err, _subs = resolve_streams(client, ep["contentId"], series_content_id=content_id)
         if err:
             cur_base, cur_auth = refresh_auth_if_needed(client, err, cur_base, cur_auth)
             auth_counter = 0
             time.sleep(API_DELAY)
-            streams, err = resolve_streams(client, ep["contentId"], series_content_id=content_id)
+            streams, err, _subs = resolve_streams(client, ep["contentId"], series_content_id=content_id)
             if err:
                 error(f"Failed: {err}")
                 tg.notify_download_fail(name, episode=ep_num, reason=str(err))
@@ -1228,7 +1246,7 @@ def handle_series(client, item, cdn_base, cf_auth, out_dir):
         if dl_err and "401" in str(dl_err):
             cur_base, cur_auth = get_cf_vod_auth(client)
             time.sleep(API_DELAY)
-            streams, _ = resolve_streams(client, ep["contentId"], series_content_id=content_id)
+            streams, _, _subs = resolve_streams(client, ep["contentId"], series_content_id=content_id)
             if streams:
                 s = streams[0]
                 time.sleep(API_DELAY)
@@ -1319,7 +1337,7 @@ def handle_movie(client, item, cdn_base, cf_auth, out_dir):
     info(t("getting_streams"))
     time.sleep(API_DELAY)
 
-    streams, err = resolve_streams(client, content_id)
+    streams, err, _subs = resolve_streams(client, content_id)
     if err:
         error(f"Failed: {err}")
         return
@@ -1595,35 +1613,47 @@ def _ensure_player():
     return None
 
 
-def _open_in_player(player, url, content_auth, content_license):
+def _open_in_player(player, url, content_auth, content_license, subtitles=None):
     headers_str = (f"Content-Auth: {content_auth}\r\n"
                    f"Content-License: {content_license}\r\n"
                    f"User-Agent: Ranger/4.9.4-17294ac0\r\n"
                    f"App: {os.environ.get('IPTV_APP_ID', '')}\r\n"
                    f"App-Version: {os.environ.get('IPTV_APK_VERSION', '')}")
 
+    sub_args = []
+    if subtitles:
+        for i, sub in enumerate(subtitles):
+            sub_url = sub["url"]
+            if player == "mpv":
+                sub_args.extend([f"--sub-file={sub_url}"])
+            elif player == "iina":
+                sub_args.extend([f"--mpv-sub-file={sub_url}"])
+            elif player == "vlc":
+                if i == 0:
+                    sub_args.extend([f"--sub-file={sub_url}"])
+
     plat = sys.platform
     if player == "mpv":
-        subprocess.Popen(["mpv", f"--http-header-fields={headers_str}", url],
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        cmd = ["mpv", f"--http-header-fields={headers_str}", url] + sub_args
+        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     elif player == "iina" and plat == "darwin":
-        subprocess.Popen(["open", "-a", "IINA", url, "--args",
-                          f"--mpv-http-header-fields={headers_str}"],
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        cmd = ["open", "-a", "IINA", url, "--args",
+               f"--mpv-http-header-fields={headers_str}"] + sub_args
+        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     elif player == "vlc" and plat == "darwin":
-        subprocess.Popen(["open", "-a", "VLC", url,
-                          "--args", f"--http-referrer=",
-                          f"--http-user-agent=Ranger/4.9.4-17294ac0"],
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        cmd = ["open", "-a", "VLC", url, "--args",
+               f"--http-user-agent=Ranger/4.9.4-17294ac0"] + sub_args
+        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     elif player == "vlc":
-        subprocess.Popen(["vlc", url,
-                          f"--http-referrer=",
-                          f"--http-user-agent=Ranger/4.9.4-17294ac0"],
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        cmd = ["vlc", url, f"--http-user-agent=Ranger/4.9.4-17294ac0"] + sub_args
+        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     else:
         subprocess.Popen([player, url],
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     info(t("opening_player", player=player.upper()))
+    if subtitles:
+        langs = ", ".join(s["lang"] for s in subtitles)
+        info(t("subs_loaded", langs=langs))
 
 
 def stream_movie(client, item, cdn_base, cf_auth):
@@ -1636,23 +1666,30 @@ def stream_movie(client, item, cdn_base, cf_auth):
 
     info(t("getting_streams"))
     time.sleep(API_DELAY)
-    streams, err = resolve_streams(client, content_id)
+    streams, err, subtitles = resolve_streams(client, content_id)
     if err:
         error(f"Failed: {err}")
         return
 
     if len(streams) > 1:
-        stream_choices = [(f"{s['encode_format']}/{s['video_format']}  {s['quality']}", "") for s in streams]
+        stream_choices = []
+        for s in streams:
+            label = f"{s['encode_format']}/{s['video_format']}  {s['quality']}"
+            if s.get("audio"):
+                label += f" -- audio: {s['audio']}"
+            stream_choices.append((label, ""))
         stream_idx = select_menu(t("select_stream"), stream_choices, back=False)
         if stream_idx is None:
             stream_idx = 0
     else:
         stream_idx = 0
+        if streams[0].get("audio"):
+            info(f"Audio: {streams[0]['audio']}")
 
     s = streams[stream_idx]
     ext = "ts" if s["video_format"] == "ts" else "mp4"
     url = f"{cdn_base}/vod/{s['media_code']}_media.{ext}"
-    _open_in_player(player, url, cf_auth, s["license"])
+    _open_in_player(player, url, cf_auth, s["license"], subtitles=subtitles)
 
 
 def stream_episode(client, item, episodes, cdn_base, cf_auth):
@@ -1682,25 +1719,32 @@ def stream_episode(client, item, episodes, cdn_base, cf_auth):
 
     info(t("getting_streams"))
     time.sleep(API_DELAY)
-    streams, err = resolve_streams(client, ep["contentId"], series_content_id=content_id)
+    streams, err, subtitles = resolve_streams(client, ep["contentId"], series_content_id=content_id)
     if err:
         error(f"Failed: {err}")
         return
 
     if len(streams) > 1:
-        stream_choices = [(f"{s['encode_format']}/{s['video_format']}  {s['quality']}", "") for s in streams]
+        stream_choices = []
+        for s in streams:
+            label = f"{s['encode_format']}/{s['video_format']}  {s['quality']}"
+            if s.get("audio"):
+                label += f" -- audio: {s['audio']}"
+            stream_choices.append((label, ""))
         stream_idx = select_menu(t("select_stream"), stream_choices, back=False)
         if stream_idx is None:
             stream_idx = 0
     else:
         stream_idx = 0
+        if streams[0].get("audio"):
+            info(f"Audio: {streams[0]['audio']}")
 
     s = streams[stream_idx]
     ext = "ts" if s["video_format"] == "ts" else "mp4"
     url = f"{cdn_base}/vod/{s['media_code']}_media.{ext}"
     ep_name = ep.get("name", f"ep {ep_num}")
     section(f"{item.get('name', 'Series')} - {ep_name}")
-    _open_in_player(player, url, cf_auth, s["license"])
+    _open_in_player(player, url, cf_auth, s["license"], subtitles=subtitles)
 
 
 def show_episode_links(client, item, episodes, cdn_base, cf_auth):
@@ -1744,7 +1788,7 @@ def show_episode_links(client, item, episodes, cdn_base, cf_auth):
 
     info(t("getting_streams"))
     time.sleep(API_DELAY)
-    streams, err = resolve_streams(client, ep["contentId"], series_content_id=content_id)
+    streams, err, subtitles = resolve_streams(client, ep["contentId"], series_content_id=content_id)
     if err:
         error(f"Failed: {err}")
         return
@@ -1752,9 +1796,10 @@ def show_episode_links(client, item, episodes, cdn_base, cf_auth):
     for s in streams:
         ext = "ts" if s["video_format"] == "ts" else "mp4"
         url = f"{cdn_base}/vod/{s['media_code']}_media.{ext}"
+        audio = f"\nAudio: [yellow]{s['audio']}[/yellow]" if s.get("audio") else ""
         console.print()
         console.print(Panel(
-            f"[bold]{s['encode_format']}/{s['video_format']} {s['quality']}[/bold]\n\n"
+            f"[bold]{s['encode_format']}/{s['video_format']} {s['quality']}[/bold]{audio}\n\n"
             f"[cyan]{url}[/cyan]\n\n"
             f"Content-Auth: [dim]{cf_auth[:40]}...[/dim]\n"
             f"Content-License: [dim]{s['license'][:40]}...[/dim]",
@@ -1762,6 +1807,9 @@ def show_episode_links(client, item, episodes, cdn_base, cf_auth):
             border_style="green",
             padding=(1, 2),
         ))
+    if subtitles:
+        sub_lines = "\n".join(f"  [yellow]{s['lang']}[/yellow]: [cyan]{s['url']}[/cyan]" for s in subtitles)
+        console.print(Panel(sub_lines, title=t("subs_available"), border_style="yellow", padding=(0, 2)))
     console.print(f"\n  [dim]{t('copy_hint')}[/dim]\n")
 
 
@@ -1773,7 +1821,7 @@ def show_movie_link(client, item, cdn_base, cf_auth):
 
     info(t("getting_streams"))
     time.sleep(API_DELAY)
-    streams, err = resolve_streams(client, content_id)
+    streams, err, subtitles = resolve_streams(client, content_id)
     if err:
         error(f"Failed: {err}")
         return
@@ -1781,9 +1829,10 @@ def show_movie_link(client, item, cdn_base, cf_auth):
     for s in streams:
         ext = "ts" if s["video_format"] == "ts" else "mp4"
         url = f"{cdn_base}/vod/{s['media_code']}_media.{ext}"
+        audio = f"\nAudio: [yellow]{s['audio']}[/yellow]" if s.get("audio") else ""
         console.print()
         console.print(Panel(
-            f"[bold]{s['encode_format']}/{s['video_format']} {s['quality']}[/bold]\n\n"
+            f"[bold]{s['encode_format']}/{s['video_format']} {s['quality']}[/bold]{audio}\n\n"
             f"[cyan]{url}[/cyan]\n\n"
             f"Content-Auth: [dim]{cf_auth[:40]}...[/dim]\n"
             f"Content-License: [dim]{s['license'][:40]}...[/dim]",
@@ -1791,6 +1840,9 @@ def show_movie_link(client, item, cdn_base, cf_auth):
             border_style="green",
             padding=(1, 2),
         ))
+    if subtitles:
+        sub_lines = "\n".join(f"  [yellow]{s['lang']}[/yellow]: [cyan]{s['url']}[/cyan]" for s in subtitles)
+        console.print(Panel(sub_lines, title=t("subs_available"), border_style="yellow", padding=(0, 2)))
     console.print(f"\n  [dim]{t('copy_hint')}[/dim]\n")
 
 
