@@ -845,8 +845,8 @@ def show_recommendations(client):
 # ─── Live TV ───
 def handle_live(client, channel_item=None):
     if channel_item:
-        show_live_url(client, channel_item.get("channelCode", ""),
-                      channel_item.get("name", ""))
+        _handle_live_channel(client, channel_item.get("channelCode", ""),
+                             channel_item.get("name", ""))
         return
 
     section("Live TV Channels")
@@ -970,7 +970,124 @@ def _browse_channels(client, channels, title):
         else:
             if 1 <= val <= len(channels):
                 ch = channels[val - 1]
-                show_live_url(client, ch["channelCode"], ch.get("name", ""))
+                _handle_live_channel(client, ch["channelCode"], ch.get("name", ""))
+
+
+def _handle_live_channel(client, channel_code, channel_name):
+    choices = [
+        ("Stream", "open in VLC/mpv"),
+        ("View details", "playCode, license, CDN"),
+    ]
+    idx = select_menu(f"{channel_name}", choices)
+    if idx is None:
+        return
+    if idx == 0:
+        stream_live(client, channel_code, channel_name)
+    else:
+        show_live_url(client, channel_code, channel_name)
+
+
+def _find_ranger_proxy(play_code):
+    try:
+        r = subprocess.run(["adb", "devices"], capture_output=True, text=True, timeout=5)
+        lines = [l for l in r.stdout.strip().split("\n")[1:] if "\tdevice" in l]
+        if not lines:
+            return None, None
+        device = lines[0].split("\t")[0]
+
+        r = subprocess.run(["adb", "-s", device, "shell", "pidof com.xuper.netxxus"],
+                           capture_output=True, text=True, timeout=5)
+        if not r.stdout.strip():
+            return None, None
+
+        r = subprocess.run(["adb", "-s", device, "shell", "cat /proc/net/tcp"],
+                           capture_output=True, text=True, timeout=5)
+        ports = []
+        for line in r.stdout.strip().split("\n")[1:]:
+            parts = line.split()
+            if len(parts) < 4:
+                continue
+            if parts[3] == "0A":
+                port = int(parts[1].split(":")[1], 16)
+                if 30000 < port < 60000:
+                    ports.append(port)
+
+        for port in sorted(ports):
+            subprocess.run(["adb", "-s", device, "forward", f"tcp:{port}", f"tcp:{port}"],
+                           capture_output=True, timeout=5)
+            try:
+                resp = requests.get(f"http://127.0.0.1:{port}/live/0/{play_code}.ts",
+                                    timeout=3, stream=True)
+                chunk = resp.raw.read(100)
+                resp.close()
+                if resp.status_code == 200 and len(chunk) > 0:
+                    return port, play_code
+            except Exception:
+                pass
+            try:
+                resp = requests.get(f"http://127.0.0.1:{port}/live/0/{play_code}.m3u8",
+                                    timeout=3)
+                if resp.status_code == 200 and "Ranger" in resp.headers.get("Server", ""):
+                    return port, play_code
+            except Exception:
+                pass
+        return None, None
+    except Exception:
+        return None, None
+
+
+def stream_live(client, channel_code, channel_name):
+    player = _ensure_player()
+    if not player:
+        return
+
+    info(f"Getting stream for: {channel_name}...")
+    time.sleep(API_DELAY)
+
+    live = client.play_live(channel_code)
+    addrs = live.get("liveAddressList", [])
+    if not addrs:
+        error("Could not get stream info")
+        return
+
+    addr = addrs[0]
+    play_code = addr.get("playCode", channel_code)
+
+    info("Searching for Ranger proxy (adb)...")
+    proxy_port, media_code = _find_ranger_proxy(play_code)
+
+    if proxy_port:
+        url = f"http://127.0.0.1:{proxy_port}/live/0/{media_code}.ts"
+        success(f"Ranger proxy found on port {proxy_port}")
+        plat = sys.platform
+        if player == "mpv":
+            cmd = ["mpv", url]
+        elif player == "iina" and plat == "darwin":
+            cmd = ["open", "-a", "IINA", url]
+        elif player == "vlc" and plat == "darwin":
+            cmd = ["open", "-a", "VLC", url]
+        elif player == "vlc":
+            cmd = ["vlc", url]
+        else:
+            cmd = [player, url]
+        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        info(t("opening_player", player=player.upper()))
+    else:
+        warn("Ranger proxy not found.")
+        console.print(Panel(
+            "Live TV requires the Magis TV app running on a device/emulator\n"
+            "connected via adb, playing the SAME channel you want to stream.\n\n"
+            "The native Ranger library handles the P2P stream assembly and\n"
+            "uses internal media codes that differ from the API's playCode.\n\n"
+            "To stream:\n"
+            "  1. Open Magis TV on your device/emulator\n"
+            "  2. Play this channel in the app\n"
+            "  3. Connect via adb (adb devices)\n"
+            "  4. Run this option again",
+            border_style="yellow",
+            title="Live Streaming",
+            padding=(0, 1),
+        ))
 
 
 def show_live_url(client, channel_code, channel_name):
@@ -995,6 +1112,8 @@ def show_live_url(client, channel_code, channel_name):
     table.add_row("Play Code", addr.get("playCode", channel_code))
     table.add_row("Format", addr.get("AVFormat", "ts"))
     table.add_row("CDN Type", addr.get("cdnType", "?"))
+    table.add_row("Quality", addr.get("quality", "?"))
+    table.add_row("Tag", addr.get("tag", "?"))
     console.print(table)
 
     console.print(f"\n  [bold]License:[/bold]\n  [dim]{license_str}[/dim]")
@@ -1006,21 +1125,15 @@ def show_live_url(client, channel_code, channel_name):
         if pc in seen:
             continue
         seen.add(pc)
-        q = "HD" if "720" in pc else "SD" if "480" in pc else "FHD" if "fhd" in pc.lower() else "?"
-        qualities.append((pc, q))
+        q = a.get("quality", "")
+        if not q:
+            q = "HD" if "720" in pc else "SD" if "480" in pc else "FHD" if "fhd" in pc.lower() else "?"
+        qualities.append((pc, q, a.get("tag", "?")))
 
     if len(qualities) > 1:
-        console.print("\n  [bold]Qualities:[/bold]")
-        for pc, q in qualities:
-            console.print(f"    [cyan]-[/cyan] {pc}  [dim]({q})[/dim]")
-
-    console.print(Panel(
-        "Live streams need SLB resolution for direct playback.\n"
-        "Use these credentials with the IPTV app or a compatible player.",
-        border_style="yellow",
-        title="Note",
-        padding=(0, 1),
-    ))
+        console.print("\n  [bold]Available streams:[/bold]")
+        for pc, q, tag in qualities:
+            console.print(f"    [cyan]-[/cyan] {pc}  [dim]({q}, {tag})[/dim]")
 
 
 # ─── Detail view ───
