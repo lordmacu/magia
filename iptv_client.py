@@ -49,14 +49,21 @@ _load_dotenv()
 
 
 # ─────────────────────────────  CRYPTO  ─────────────────────────────
-_key_hex = os.environ.get("IPTV_3DES_KEY", "")
-if not _key_hex:
-    raise RuntimeError("IPTV_3DES_KEY not set. Copy .env.example to .env and fill in the values.")
-KEY_3DES = bytes.fromhex(_key_hex)
+KEY_3DES = None
+
+def _init_key():
+    global KEY_3DES
+    if KEY_3DES is not None:
+        return
+    _key_hex = os.environ.get("IPTV_3DES_KEY", "")
+    if not _key_hex:
+        raise RuntimeError("IPTV_3DES_KEY not set. Run the setup wizard or copy .env.example to .env and fill in the values.")
+    KEY_3DES = bytes.fromhex(_key_hex)
 
 
 def encrypt_body(plain: str) -> str:
     """json (str) -> hex(base64(3DES-ECB(json)))  == cuerpo que espera el server."""
+    _init_key()
     ct = DES3.new(KEY_3DES, DES3.MODE_ECB).encrypt(pad(plain.encode("utf-8"), 8))
     b64 = base64.b64encode(ct).decode("ascii")
     return b64.encode("ascii").hex()
@@ -64,6 +71,7 @@ def encrypt_body(plain: str) -> str:
 
 def decrypt_blob(wire: str) -> str:
     """hex(base64(3DES(json))) -> json (str).  Sirve para el campo .data de las respuestas."""
+    _init_key()
     inner = bytes.fromhex(wire).decode("ascii", "ignore")
     ct = base64.b64decode(inner)
     return unpad(DES3.new(KEY_3DES, DES3.MODE_ECB).decrypt(ct), 8).decode("utf-8", "ignore")
