@@ -1,0 +1,9 @@
+.env
+__pycache__/
+*.pyc
+downloads/
+dragonball/
+*.tmp
+.active_series.json
+.last_search.json
+.last_seasons.json

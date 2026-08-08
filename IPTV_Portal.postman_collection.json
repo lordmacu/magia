@@ -1,0 +1,4556 @@
+{
+  "info": {
+    "name": "IPTV Portal (Xuper/masnew) — RE completo",
+    "description": "Colección generada por reverse-engineering del APK Xuper.Hydra.HDR.4KP.\n\n• Escribe el body como JSON PLANO legible; el pre-request lo enriquece + cifra 3DES.\n• El test descifra automáticamente el campo `data` de la respuesta (ver Console).\n• Requiere Postman reciente (usa pm.request.body.update en pre-request) y crypto-js.\n• Ajusta las variables de colección (userToken es EFÍMERO).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// ── Cifrado de request 3DES (portal IPTV) ──",
+          "// El body escrito abajo es JSON PLANO legible; aquí se enriquece + cifra como espera el server.",
+          "const CryptoJS = require('crypto-js');",
+          "const KEY = CryptoJS.enc.Hex.parse(pm.collectionVariables.get('key3des'));",
+          "",
+          "const DEVICE = {",
+          "  loginType:\"2\", appLanguage:\"en\", apkVersion:\"49902\", sysVersion: pm.collectionVariables.get('spkgVer'),",
+          "  appId:\"com.android.msandroid\", hardwareInfo:\"ranchu\", model:\"sdk_gphone64_arm64\", product:\"sdk_gphone64_arm64\",",
+          "  cpu:\"arm64-v8a\", B29:\"\", reserve1: pm.collectionVariables.get('reserve1'),",
+          "  deviceToken: pm.collectionVariables.get('deviceToken'), sn: pm.collectionVariables.get('sn'),",
+          "  drmId: pm.collectionVariables.get('drmId'), sdkVer: 36",
+          "};",
+          "",
+          "let raw = pm.request.body && pm.request.body.raw ? pm.request.body.raw : \"{}\";",
+          "raw = pm.variables.replaceIn(raw);            // resolver {{userId}}, {{contentId}}, etc.",
+          "let obj = {};",
+          "try { obj = JSON.parse(raw); } catch(e) {}",
+          "const merged = Object.assign({}, obj, DEVICE);   // enriquecer con device fields",
+          "const plain = JSON.stringify(merged);",
+          "",
+          "const enc = CryptoJS.TripleDES.encrypt(plain, KEY, {mode: CryptoJS.mode.ECB, padding: CryptoJS.pad.Pkcs7});",
+          "const b64 = enc.toString();                       // base64 del ciphertext",
+          "const wire = CryptoJS.enc.Utf8.parse(b64).toString(CryptoJS.enc.Hex);  // hex(base64(cipher))",
+          "pm.request.body.update({ mode: 'raw', raw: wire });"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// ── Descifrado de response 3DES ──",
+          "const CryptoJS = require('crypto-js');",
+          "const KEY = CryptoJS.enc.Hex.parse(pm.collectionVariables.get('key3des'));",
+          "function dec(hex){",
+          "  const b64 = CryptoJS.enc.Hex.parse(hex).toString(CryptoJS.enc.Utf8);   // hex -> ascii(base64)",
+          "  const d = CryptoJS.TripleDES.decrypt(b64, KEY, {mode: CryptoJS.mode.ECB, padding: CryptoJS.pad.Pkcs7});",
+          "  return d.toString(CryptoJS.enc.Utf8);",
+          "}",
+          "let j = {};",
+          "try { j = pm.response.json(); } catch(e){}",
+          "if (j.returnCode && j.returnCode !== \"0\") {",
+          "  console.log(\"⚠ returnCode\", j.returnCode, j.errorMessage);",
+          "} else if (typeof j.data === 'string' && j.data.length) {",
+          "  try {",
+          "    const plain = dec(j.data);",
+          "    console.log(\"📦 data descifrada:\", plain.substring(0, 1200));",
+          "    const o = JSON.parse(plain);",
+          "    // auto-guardar contentId útil para encadenar",
+          "    const items = (o.searchItemList && o.searchItemList[0] && o.searchItemList[0].itemList) || o.assetList || [];",
+          "    if (items[0] && items[0].contentId) pm.collectionVariables.set('contentId', items[0].contentId);",
+          "    pm.test(\"returnCode 0 (éxito)\", () => pm.expect(true).to.be.true);",
+          "  } catch(e){ console.log(\"dec err\", e); }",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "host",
+      "value": "osuhk.m3x8o50te.com"
+    },
+    {
+      "key": "host_fallback",
+      "value": "oogoy.f30c96w8.com"
+    },
+    {
+      "key": "key3des",
+      "value": "e7af1ed7de1ffddd7bd3fe37ebdffde9ef3fe1ae39edfeb8"
+    },
+    {
+      "key": "userId",
+      "value": "948922830"
+    },
+    {
+      "key": "userToken",
+      "value": "287a0a33-7eeb-4570-9a05-58e97493505a"
+    },
+    {
+      "key": "portalCode",
+      "value": "masnew"
+    },
+    {
+      "key": "apk",
+      "value": "com.android.msandroid"
+    },
+    {
+      "key": "apkVer",
+      "value": "43404"
+    },
+    {
+      "key": "spkgVer",
+      "value": "2025-08-07 05:40:11_36_16_"
+    },
+    {
+      "key": "sn",
+      "value": "492eb3fcf02bc230f5aa1b81a1f7061c"
+    },
+    {
+      "key": "drmId",
+      "value": "TWLRRHwTiGbdWiUU6HT8LoAI5b3Lmd4qiqerlzAe+XA="
+    },
+    {
+      "key": "deviceToken",
+      "value": "eFKmXlweQ0yyTmzuxYc8fQ:APA91bGLrLrdDWDBd5hSpsxKxzo0uK5TDI4imczuwjYpgzfzxahPQcfcv-gP-EeWLBIjqTahEqNEk-WOJiaYFHufUiKAPX8AJKQZj7Lyx0PiIsZZb6Kla-8"
+    },
+    {
+      "key": "reserve1",
+      "value": "583442714b345572434a4d5769637461545a735936413d3d"
+    },
+    {
+      "key": "mac",
+      "value": "02:00:00:00:00:00"
+    },
+    {
+      "key": "contentId",
+      "value": "11A43548F9CC4E39A342CABD7D673AD9"
+    },
+    {
+      "key": "channelCode",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "00 · Bootstrap / Config",
+      "item": [
+        {
+          "name": "getPropertiesInfo  (api/portalCore/getPropertiesInfo)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/getPropertiesInfo",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "getPropertiesInfo"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "get  (api/portalCore/config/get)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/config/get",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "config",
+                "get"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "getSlbInfo  (api/portalCore/v14/getSlbInfo)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v14/getSlbInfo",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v14",
+                "getSlbInfo"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "getCustomerService  (api/portalCore/feedback/getCustomerService)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/feedback/getCustomerService",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "feedback",
+                "getCustomerService"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "getSlbInfo  (api/portalCore/v15/getSlbInfo)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v15/getSlbInfo",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v15",
+                "getSlbInfo"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "auth  (api/PreInstall/auth)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/PreInstall/auth",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "PreInstall",
+                "auth"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "getBaseTime  (api/portalCore/getBaseTime)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/getBaseTime",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "getBaseTime"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "01 · Activación / Dispositivo",
+      "item": [
+        {
+          "name": "updateOrInsert  (api/portalCore/device/updateOrInsert)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/device/updateOrInsert",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "device",
+                "updateOrInsert"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "active  (api/portalCore/v8/active)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v8/active",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v8",
+                "active"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "snToken  (api/portalCore/v3/snToken)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v3/snToken",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v3",
+                "snToken"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "deleteDevice  (api/portalCore/device-management/deleteDevice)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/device-management/deleteDevice",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "device-management",
+                "deleteDevice"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "getAuthInfo  (api/portalCore/v9/getAuthInfo)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v9/getAuthInfo",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v9",
+                "getAuthInfo"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "terminalAuth  (api/portalCore/terminalAuth)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/terminalAuth",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "terminalAuth"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "getDevice  (api/portalCore/device-management/getDevice)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/device-management/getDevice",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "device-management",
+                "getDevice"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 · Cuenta / Login",
+      "item": [
+        {
+          "name": "getEmailSuffix  (api/portalCore/getEmailSuffix)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/getEmailSuffix",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "getEmailSuffix"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "changeBindEmail  (api/portalCore/v2/changeBindEmail)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v2/changeBindEmail",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v2",
+                "changeBindEmail"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "getAreaCode  (api/portalCore/getAreaCode)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/getAreaCode",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "getAreaCode"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "setPassword  (api/portalCore/setPassword)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/setPassword",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "setPassword"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "login  (api/portalCore/v8/login)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v8/login",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v8",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "updateBindEmailOrPwd  (api/portalCore/updateBindEmailOrPwd)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/updateBindEmailOrPwd",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "updateBindEmailOrPwd"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "getVerifiCode  (api/portalCore/getVerifiCode)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/getVerifiCode",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "getVerifiCode"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "checkVerifiCode  (api/portalCore/checkVerifiCode)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/checkVerifiCode",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "checkVerifiCode"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "bindEmail  (api/portalCore/v2/bindEmail)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v2/bindEmail",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v2",
+                "bindEmail"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "bindEmailGiftDays  (api/portalCore/bindEmailGiftDays)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/bindEmailGiftDays",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "bindEmailGiftDays"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "loginOut  (api/portalCore/v5/loginOut)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v5/loginOut",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v5",
+                "loginOut"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "token  (api/portalCore/qr/token)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/qr/token",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "qr",
+                "token"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "unBind  (api/portalCore/v2/unBind)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v2/unBind",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v2",
+                "unBind"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "checkForceBind  (api/portalCore/checkForceBind)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/checkForceBind",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "checkForceBind"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "sendEmailVerifyCode  (api/portalCore/v2/sendEmailVerifyCode)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v2/sendEmailVerifyCode",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v2",
+                "sendEmailVerifyCode"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "changeBindPhone  (api/portalCore/changeBindPhone)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/changeBindPhone",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "changeBindPhone"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "resetPwd  (api/portalCore/v4/resetPwd)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v4/resetPwd",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v4",
+                "resetPwd"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "allowLogin  (api/portalCore/qr/allowLogin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/qr/allowLogin",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "qr",
+                "allowLogin"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "validateVerifyCode  (api/portalCore/v2/validateVerifyCode)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v2/validateVerifyCode",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v2",
+                "validateVerifyCode"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "getResult  (api/portalCore/v5/qr/getResult)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v5/qr/getResult",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v5",
+                "qr",
+                "getResult"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "register  (api/portalCore/register)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/register",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "pwdCheck  (api/portalCore/pwdCheck)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/pwdCheck",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "pwdCheck"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "bindPhone  (api/portalCore/bindPhone)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/bindPhone",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "bindPhone"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "unBindEmail  (api/portalCore/unBindEmail)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/unBindEmail",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "unBindEmail"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 · Catálogo / Listados",
+      "item": [
+        {
+          "name": "filterGenre  (api/portalCore/v3/filterGenre)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v3/filterGenre",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v3",
+                "filterGenre"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "getNextColumns  (api/portalCore/getNextColumns)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/getNextColumns",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "getNextColumns"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "getRecommendColumnContents  (api/portalCore/getRecommendColumnContents)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/getRecommendColumnContents",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "getRecommendColumnContents"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "getRecommends  (api/portalCore/v3/getRecommends)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v3/getRecommends",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v3",
+                "getRecommends"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "getColumnRecommendResource  (api/portalCore/v3/getColumnRecommendResource)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v3/getColumnRecommendResource",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v3",
+                "getColumnRecommendResource"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "getHome  (api/portalCore/getHome)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/getHome",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "getHome"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "filterByContent  (api/portalCore/v3/filterByContent)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v3/filterByContent",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v3",
+                "filterByContent"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "getShelveData  (api/portalCore/v3/getShelveData)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v3/getShelveData",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v3",
+                "getShelveData"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "getColumnContents  (api/portalCore/v3/getColumnContents)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v3/getColumnContents",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v3",
+                "getColumnContents"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 · Búsqueda / Detalle",
+      "item": [
+        {
+          "name": "getAllbackProgram  (api/portalCore/getAllbackProgram)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/getAllbackProgram",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "getAllbackProgram"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "blSearchByName  (api/portalCore/blSearchByName)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/blSearchByName",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "blSearchByName"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "getItemByPerson  (api/portalCore/getItemByPerson)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/getItemByPerson",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "getItemByPerson"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "getPerson  (api/portalCore/getPerson)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/getPerson",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "getPerson"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "searchByContent  (api/portalCore/v3/searchByContent)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v3/searchByContent",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v3",
+                "searchByContent"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "getItemData  (api/portalCore/v4/getItemData)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v4/getItemData",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v4",
+                "getItemData"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "searchResourceOrPerson  (api/portalCore/searchResourceOrPerson)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/searchResourceOrPerson",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "searchResourceOrPerson"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "liveSearchByName  (api/portalCore/liveSearchByName)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/liveSearchByName",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "liveSearchByName"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "searchByName  (api/portalCore/v3/searchByName)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v3/searchByName",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v3",
+                "searchByName"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "blSearchByContent  (api/portalCore/blSearchByContent)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/blSearchByContent",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "blSearchByContent"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 · Reproducción / Live",
+      "item": [
+        {
+          "name": "getLiveData  (api/portalCore/v6/getLiveData)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v6/getLiveData",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v6",
+                "getLiveData"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "startPlayLive  (api/portalCore/v4/startPlayLive)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v4/startPlayLive",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v4",
+                "startPlayLive"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "startPlayVOD  (api/portalCore/v10/startPlayVOD)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v10/startPlayVOD",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v10",
+                "startPlayVOD"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "getProgram  (api/portalCore/v3/getProgram)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v3/getProgram",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v3",
+                "getProgram"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "startPlayBTV  (api/portalCore/v6/startPlayBTV)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v6/startPlayBTV",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v6",
+                "startPlayBTV"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 · EPG / Deportes",
+      "item": [
+        {
+          "name": "getLineUps  (api/portalCore/epg/v2/getLineUps)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/epg/v2/getLineUps",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "epg",
+                "v2",
+                "getLineUps"
+              ],
+              "query": [
+                {
+                  "key": "gameId",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "getAllMatch  (api/portalCore/epg/v2/getAllMatch)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/epg/v2/getAllMatch",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "epg",
+                "v2",
+                "getAllMatch"
+              ],
+              "query": [
+                {
+                  "key": "appId",
+                  "value": ""
+                },
+                {
+                  "key": "match",
+                  "value": ""
+                },
+                {
+                  "key": "gameId",
+                  "value": ""
+                },
+                {
+                  "key": "pageSize",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "getShelveMatch  (api/portalCore/epg/v2/getShelveMatch)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/epg/v2/getShelveMatch",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "epg",
+                "v2",
+                "getShelveMatch"
+              ],
+              "query": [
+                {
+                  "key": "appId",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "getScoreboard  (api/portalCore/epg/v2/getScoreboard)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/epg/v2/getScoreboard",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "epg",
+                "v2",
+                "getScoreboard"
+              ],
+              "query": [
+                {
+                  "key": "match",
+                  "value": ""
+                },
+                {
+                  "key": "teamAName",
+                  "value": ""
+                },
+                {
+                  "key": "teamBName",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "getTeamEvent  (api/portalCore/epg/v2/getTeamEvent)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/epg/v2/getTeamEvent",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "epg",
+                "v2",
+                "getTeamEvent"
+              ],
+              "query": [
+                {
+                  "key": "gameId",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "getFootballMatch  (api/portalCore/epg/v3/getFootballMatch)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/epg/v3/getFootballMatch",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "epg",
+                "v3",
+                "getFootballMatch"
+              ],
+              "query": [
+                {
+                  "key": "appId",
+                  "value": ""
+                },
+                {
+                  "key": "match",
+                  "value": ""
+                },
+                {
+                  "key": "gameId",
+                  "value": ""
+                },
+                {
+                  "key": "appLanguage",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "getNearestMatch  (api/portalCore/epg/v4/getNearestMatch)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/epg/v4/getNearestMatch",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "epg",
+                "v4",
+                "getNearestMatch"
+              ],
+              "query": [
+                {
+                  "key": "appId",
+                  "value": ""
+                },
+                {
+                  "key": "pageSize",
+                  "value": ""
+                },
+                {
+                  "key": "appLanguage",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "{liveType}  (epg/v2/live/app/utc{timezone}/{liveType})",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/epg/v2/live/app/utc{timezone}/{liveType}",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "epg",
+                "v2",
+                "live",
+                "app",
+                "utc{timezone}",
+                "{liveType}"
+              ],
+              "query": [
+                {
+                  "key": "md5",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "getMatchDetail  (api/portalCore/epg/v2/getMatchDetail)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/epg/v2/getMatchDetail",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "epg",
+                "v2",
+                "getMatchDetail"
+              ],
+              "query": [
+                {
+                  "key": "gameId",
+                  "value": ""
+                },
+                {
+                  "key": "teamAName",
+                  "value": ""
+                },
+                {
+                  "key": "teamBName",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "getNearestMatch  (api/portalCore/epg/v5/getNearestMatch)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/epg/v5/getNearestMatch",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "epg",
+                "v5",
+                "getNearestMatch"
+              ],
+              "query": [
+                {
+                  "key": "appId",
+                  "value": ""
+                },
+                {
+                  "key": "pageSize",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 · Usuario / Monetización",
+      "item": [
+        {
+          "name": "getOrderInfo  (api/portalCore/package/getOrderInfo)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/package/getOrderInfo",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "package",
+                "getOrderInfo"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "addSubscribe  (api/portalCore/addSubscribe)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/addSubscribe",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "addSubscribe"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "getSubscribe  (api/portalCore/getSubscribe)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/getSubscribe",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "getSubscribe"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "addFavorite  (api/portalCore/v2/addFavorite)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v2/addFavorite",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v2",
+                "addFavorite"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "getFree  (api/portalCore/v2/getFree)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v2/getFree",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v2",
+                "getFree"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "apkReceiveCoupon  (api/portalCore/apkReceiveCoupon)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/apkReceiveCoupon",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "apkReceiveCoupon"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "exchange  (api/portalCore/v5/exchange)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v5/exchange",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v5",
+                "exchange"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "getExchangeOrderInfo  (api/portalCore/getExchangeOrderInfo)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/getExchangeOrderInfo",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "getExchangeOrderInfo"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "apkQueryCoupon  (api/portalCore/apkQueryCoupon)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/apkQueryCoupon",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "apkQueryCoupon"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "updateRestrictedStatus  (api/portalCore/v2/updateRestrictedStatus)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v2/updateRestrictedStatus",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v2",
+                "updateRestrictedStatus"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "getPackageCustomization  (api/portalCore/package/getPackageCustomization)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/package/getPackageCustomization",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "package",
+                "getPackageCustomization"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "delSubscribe  (api/portalCore/delSubscribe)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/delSubscribe",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "delSubscribe"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "delFavorite  (api/portalCore/delFavorite)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/delFavorite",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "delFavorite"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "getFavorite  (api/portalCore/getFavorite)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/getFavorite",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "getFavorite"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "getInviteCode  (api/portalCore/v2/getInviteCode)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v2/getInviteCode",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v2",
+                "getInviteCode"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 · Misc / Telemetría",
+      "item": [
+        {
+          "name": "heartbeat  (api/portalCore/v5/heartbeat)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/v5/heartbeat",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "v5",
+                "heartbeat"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "userFeedBack  (api/portalCore/feedback/userFeedBack)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/feedback/userFeedBack",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "feedback",
+                "userFeedBack"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 · Otros",
+      "item": [
+        {
+          "name": "emailResetPassNotice  (api/portalCore/emailResetPassNotice)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/portalCore/emailResetPassNotice",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "portalCore",
+                "emailResetPassNotice"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "metadata  (api/subs/terminal/metadata)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json;charset=utf-8"
+              },
+              {
+                "key": "apk",
+                "value": "{{apk}}"
+              },
+              {
+                "key": "apkVer",
+                "value": "{{apkVer}}"
+              },
+              {
+                "key": "spkgVer",
+                "value": "{{spkgVer}}"
+              }
+            ],
+            "url": {
+              "raw": "https://{{host}}/api/portalCore/api/subs/terminal/metadata",
+              "protocol": "https",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "portalCore",
+                "api",
+                "subs",
+                "terminal",
+                "metadata"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"userToken\": \"{{userToken}}\",\n  \"portalCode\": \"{{portalCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
