@@ -2,6 +2,12 @@
 
 > Search, browse, download movies & series, and get live TV streaming URLs — all from your terminal.
 
+## Disclaimer
+
+**This project does not own, operate, host, or distribute any content or servers.** All content accessed through this tool belongs to and is served by the third-party IPTV platform **Magis TV / Xuper** (`com.xuper.netxxus`). This project is purely the result of reverse engineering the Magis TV Android APK for personal educational and research purposes. No media files, streams, or server infrastructure are provided, hosted, or redistributed by this project or its author. Use at your own risk and responsibility.
+
+---
+
 ```
   ███╗   ███╗ █████╗  ██████╗ ██╗ █████╗
   ████╗ ████║██╔══██╗██╔════╝ ██║██╔══██╗
@@ -489,6 +495,10 @@ All endpoints are POST to `https://{host}/api/portalCore/{route}`:
 - CDN auth tokens expire in ~48 hours and auto-refresh
 
 ---
+
+## Disclaimer
+
+**This project does not own, operate, host, or distribute any content or servers.** All content accessed through this tool belongs to and is served by the third-party IPTV platform **Magis TV / Xuper** (`com.xuper.netxxus`). This tool is the result of reverse engineering the Magis TV Android APK for personal educational and research purposes only. No media files, streams, or server infrastructure are provided, hosted, or redistributed by this project or its author.
 
 ## License
 

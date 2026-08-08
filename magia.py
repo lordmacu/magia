@@ -269,9 +269,22 @@ BANNER = """[bold cyan]
 
 
 # ─── UI helpers ───
+DISCLAIMER_EN = (
+    "This tool does not own, host, or distribute any content or servers.\n"
+    "All content belongs to and is served by Magis TV / Xuper.\n"
+    "Built via reverse engineering of the APK for personal/educational use only."
+)
+DISCLAIMER_ES = (
+    "Esta herramienta no posee, aloja ni distribuye contenido ni servidores.\n"
+    "Todo el contenido pertenece y es servido por Magis TV / Xuper.\n"
+    "Construido mediante ingenieria inversa del APK solo para uso personal/educativo."
+)
+
 def banner():
     console.print(BANNER)
     console.print("  [dim]IPTV Media Tool -- Search, Stream & Download[/dim]\n")
+    disc = DISCLAIMER_ES if LANG == "es" else DISCLAIMER_EN
+    console.print(Panel(disc, border_style="yellow", padding=(0, 2), title="Disclaimer"))
 
 def section(title):
     console.print()
