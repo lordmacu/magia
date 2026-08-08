@@ -149,11 +149,25 @@ $envFile = "$INSTALL_DIR\.env"
 $skipEnv = $false
 
 if (Test-Path $envFile) {
-    Ok ".env already exists"
-    $reconf = Read-Host "  ?  Reconfigure .env? (y/N)"
-    if ($reconf -ne "y" -and $reconf -ne "Y") {
-        Ok "Keeping existing .env"
+    $envContent = Get-Content $envFile -Raw
+    $requiredVars = @("IPTV_3DES_KEY", "IPTV_HOSTS", "IPTV_APP_ID", "IPTV_APK_VERSION", "IPTV_DEVICE_SN", "IPTV_DEVICE_DRM_ID", "IPTV_DEVICE_TOKEN", "IPTV_DEVICE_RESERVE1")
+    $envComplete = $true
+    foreach ($v in $requiredVars) {
+        if ($envContent -notmatch "(?m)^${v}=.+") {
+            $envComplete = $false
+            break
+        }
+    }
+    if ($envComplete) {
+        Ok ".env already configured, keeping it"
         $skipEnv = $true
+    } else {
+        Warn ".env exists but has empty required fields"
+        $reconf = Read-Host "  ?  Reconfigure .env? (y/N)"
+        if ($reconf -ne "y" -and $reconf -ne "Y") {
+            Ok "Keeping existing .env"
+            $skipEnv = $true
+        }
     }
 }
 

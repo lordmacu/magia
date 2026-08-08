@@ -147,19 +147,29 @@ done
 # ═══════════════════════════════════════
 step "Configurando entorno"
 
+SKIP_ENV=0
 if [ -f "$INSTALL_DIR/.env" ]; then
-    ok ".env ya existe"
-    echo ""
-    echo -ne "  ${Y}?${R}  Reconfigure .env? (y/N): "
-    read -r RECONF
-    if [ "$RECONF" != "y" ] && [ "$RECONF" != "Y" ]; then
-        ok "Keeping existing .env"
+    # Check if required fields have values
+    _env_complete=1
+    for _var in IPTV_3DES_KEY IPTV_HOSTS IPTV_APP_ID IPTV_APK_VERSION IPTV_DEVICE_SN IPTV_DEVICE_DRM_ID IPTV_DEVICE_TOKEN IPTV_DEVICE_RESERVE1; do
+        _val=$(grep "^${_var}=" "$INSTALL_DIR/.env" 2>/dev/null | cut -d= -f2-)
+        if [ -z "$_val" ]; then
+            _env_complete=0
+            break
+        fi
+    done
+    if [ "$_env_complete" = "1" ]; then
+        ok ".env already configured, keeping it"
         SKIP_ENV=1
     else
-        SKIP_ENV=0
+        warn ".env exists but has empty required fields"
+        echo -ne "  ${Y}?${R}  Reconfigure .env? (y/N): "
+        read -r RECONF
+        if [ "$RECONF" != "y" ] && [ "$RECONF" != "Y" ]; then
+            ok "Keeping existing .env"
+            SKIP_ENV=1
+        fi
     fi
-else
-    SKIP_ENV=0
 fi
 
 if [ "${SKIP_ENV:-0}" = "0" ]; then
