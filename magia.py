@@ -122,6 +122,15 @@ STRINGS = {
         "already_exists": "Already exists: {name} ({size:.1f} MB)",
         "stream_url": "Stream URL",
         "copy_hint": "Copy this URL to play in VLC or any player",
+        "stream_play": "Stream (open in player)",
+        "stream_play_hint": "play directly in VLC/mpv",
+        "opening_player": "Opening in {player}...",
+        "no_player": "No player found",
+        "installing_vlc": "Installing VLC...",
+        "vlc_installed": "VLC installed",
+        "vlc_install_fail": "Could not install VLC automatically. Install it manually: https://www.videolan.org",
+        "select_stream": "Select stream quality",
+        "select_ep_stream": "Which episode to stream? (1-{n})",
         "email_user": "Email / username",
         "enc_password": "Encrypted password (from app capture)",
         "using_creds": "Using credentials from .env ({u})",
@@ -207,6 +216,15 @@ STRINGS = {
         "already_exists": "Ya existe: {name} ({size:.1f} MB)",
         "stream_url": "URL del Stream",
         "copy_hint": "Copia esta URL para reproducir en VLC u otro reproductor",
+        "stream_play": "Reproducir (abrir en reproductor)",
+        "stream_play_hint": "reproducir directo en VLC/mpv",
+        "opening_player": "Abriendo en {player}...",
+        "no_player": "No se encontro reproductor",
+        "installing_vlc": "Instalando VLC...",
+        "vlc_installed": "VLC instalado",
+        "vlc_install_fail": "No se pudo instalar VLC automaticamente. Instalalo manualmente: https://www.videolan.org",
+        "select_stream": "Selecciona calidad del stream",
+        "select_ep_stream": "Que episodio reproducir? (1-{n})",
         "email_user": "Email / usuario",
         "enc_password": "Contrasena encriptada (capturada de la app)",
         "using_creds": "Usando credenciales del .env ({u})",
@@ -1066,6 +1084,7 @@ def handle_series(client, item, cdn_base, cf_auth, out_dir):
         (t("dl_range"), "e.g. episodes 1-10"),
         (t("dl_single"), ""),
         (t("browse_eps"), ""),
+        (t("stream_play"), t("stream_play_hint")),
         (t("view_details"), ""),
         (t("view_link"), t("view_link_hint")),
     ]
@@ -1074,10 +1093,14 @@ def handle_series(client, item, cdn_base, cf_auth, out_dir):
         return
 
     if idx == 4:
-        show_detail(client, item)
+        stream_episode(client, item, episodes, cdn_base, cf_auth)
         return
 
     if idx == 5:
+        show_detail(client, item)
+        return
+
+    if idx == 6:
         show_episode_links(client, item, episodes, cdn_base, cf_auth)
         return
 
@@ -1272,6 +1295,7 @@ def handle_movie(client, item, cdn_base, cf_auth, out_dir):
 
     choices = [
         (t("dl_movie"), t("dl_movie_hint")),
+        (t("stream_play"), t("stream_play_hint")),
         (t("view_details"), t("view_details_hint")),
         (t("view_link"), t("view_link_hint")),
     ]
@@ -1280,11 +1304,15 @@ def handle_movie(client, item, cdn_base, cf_auth, out_dir):
         return
 
     if idx == 1:
+        stream_movie(client, item, cdn_base, cf_auth)
+        return
+
+    if idx == 2:
         show_detail(client, item)
         if not confirm(t("dl_this_movie"), default=False):
             return
 
-    if idx == 2:
+    if idx == 3:
         show_movie_link(client, item, cdn_base, cf_auth)
         return
 
@@ -1503,6 +1531,178 @@ def _update_env_var(env_path, var, value):
 
 
 # ─── View stream URL without downloading ───
+def _find_player():
+    plat = sys.platform
+    if plat == "darwin":
+        for app in ["VLC", "IINA", "mpv"]:
+            if Path(f"/Applications/{app}.app").exists():
+                return app.lower()
+        if shutil.which("mpv"):
+            return "mpv"
+    else:
+        for cmd in ["vlc", "mpv", "celluloid"]:
+            if shutil.which(cmd):
+                return cmd
+    return None
+
+
+def _install_vlc():
+    plat = sys.platform
+    try:
+        if plat == "darwin":
+            if shutil.which("brew"):
+                info(t("installing_vlc"))
+                subprocess.run(["brew", "install", "--cask", "vlc"], check=True,
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                success(t("vlc_installed"))
+                return True
+        elif plat == "linux":
+            for mgr in [["sudo", "apt", "install", "-y", "vlc"],
+                         ["sudo", "dnf", "install", "-y", "vlc"],
+                         ["sudo", "pacman", "-S", "--noconfirm", "vlc"]]:
+                if shutil.which(mgr[1]):
+                    info(t("installing_vlc"))
+                    subprocess.run(mgr, check=True,
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    success(t("vlc_installed"))
+                    return True
+        elif plat == "win32":
+            if shutil.which("winget"):
+                info(t("installing_vlc"))
+                subprocess.run(["winget", "install", "VideoLAN.VLC",
+                                "--accept-source-agreements", "--accept-package-agreements"],
+                               check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                success(t("vlc_installed"))
+                return True
+            elif shutil.which("choco"):
+                info(t("installing_vlc"))
+                subprocess.run(["choco", "install", "vlc", "-y"],
+                               check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                success(t("vlc_installed"))
+                return True
+    except subprocess.CalledProcessError:
+        pass
+    return False
+
+
+def _ensure_player():
+    player = _find_player()
+    if player:
+        return player
+    if _install_vlc():
+        return _find_player() or "vlc"
+    error(t("vlc_install_fail"))
+    return None
+
+
+def _open_in_player(player, url, content_auth, content_license):
+    headers_str = (f"Content-Auth: {content_auth}\r\n"
+                   f"Content-License: {content_license}\r\n"
+                   f"User-Agent: Ranger/4.9.4-17294ac0\r\n"
+                   f"App: {os.environ.get('IPTV_APP_ID', '')}\r\n"
+                   f"App-Version: {os.environ.get('IPTV_APK_VERSION', '')}")
+
+    plat = sys.platform
+    if player == "mpv":
+        subprocess.Popen(["mpv", f"--http-header-fields={headers_str}", url],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    elif player == "iina" and plat == "darwin":
+        subprocess.Popen(["open", "-a", "IINA", url, "--args",
+                          f"--mpv-http-header-fields={headers_str}"],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    elif player == "vlc" and plat == "darwin":
+        subprocess.Popen(["open", "-a", "VLC", url,
+                          "--args", f"--http-referrer=",
+                          f"--http-user-agent=Ranger/4.9.4-17294ac0"],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    elif player == "vlc":
+        subprocess.Popen(["vlc", url,
+                          f"--http-referrer=",
+                          f"--http-user-agent=Ranger/4.9.4-17294ac0"],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    else:
+        subprocess.Popen([player, url],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    info(t("opening_player", player=player.upper()))
+
+
+def stream_movie(client, item, cdn_base, cf_auth):
+    content_id = item["contentId"]
+    name = item.get("name", "Movie")
+
+    player = _ensure_player()
+    if not player:
+        return
+
+    info(t("getting_streams"))
+    time.sleep(API_DELAY)
+    streams, err = resolve_streams(client, content_id)
+    if err:
+        error(f"Failed: {err}")
+        return
+
+    if len(streams) > 1:
+        stream_choices = [(f"{s['encode_format']}/{s['video_format']}  {s['quality']}", "") for s in streams]
+        stream_idx = select_menu(t("select_stream"), stream_choices, back=False)
+        if stream_idx is None:
+            stream_idx = 0
+    else:
+        stream_idx = 0
+
+    s = streams[stream_idx]
+    ext = "ts" if s["video_format"] == "ts" else "mp4"
+    url = f"{cdn_base}/vod/{s['media_code']}_media.{ext}"
+    _open_in_player(player, url, cf_auth, s["license"])
+
+
+def stream_episode(client, item, episodes, cdn_base, cf_auth):
+    content_id = item["contentId"]
+
+    val = ask(t("select_ep_stream", n=len(episodes)))
+    if not val:
+        return
+    try:
+        ep_num = max(1, min(int(val), len(episodes)))
+    except ValueError:
+        ep_num = 1
+
+    ep = None
+    for i, e in enumerate(episodes):
+        n = int(e.get("seriesNumber") or (i + 1))
+        if n == ep_num:
+            ep = e
+            break
+    if not ep:
+        error(f"Episode {ep_num} not found")
+        return
+
+    player = _ensure_player()
+    if not player:
+        return
+
+    info(t("getting_streams"))
+    time.sleep(API_DELAY)
+    streams, err = resolve_streams(client, ep["contentId"], series_content_id=content_id)
+    if err:
+        error(f"Failed: {err}")
+        return
+
+    if len(streams) > 1:
+        stream_choices = [(f"{s['encode_format']}/{s['video_format']}  {s['quality']}", "") for s in streams]
+        stream_idx = select_menu(t("select_stream"), stream_choices, back=False)
+        if stream_idx is None:
+            stream_idx = 0
+    else:
+        stream_idx = 0
+
+    s = streams[stream_idx]
+    ext = "ts" if s["video_format"] == "ts" else "mp4"
+    url = f"{cdn_base}/vod/{s['media_code']}_media.{ext}"
+    ep_name = ep.get("name", f"ep {ep_num}")
+    section(f"{item.get('name', 'Series')} - {ep_name}")
+    _open_in_player(player, url, cf_auth, s["license"])
+
+
 def show_episode_links(client, item, episodes, cdn_base, cf_auth):
     content_id = item["contentId"]
     name = item.get("name", "Series")
@@ -1610,17 +1810,17 @@ REQUIRED_VARS = [
     ("IPTV_3DES_KEY",        "3DES Key (48 hex chars)"),
     ("IPTV_HOSTS",           "API Hosts (comma-separated, e.g. host1.com,host2.com)"),
     ("IPTV_APP_ID",          "App ID (e.g. com.android.msandroid)"),
-    ("IPTV_APK_VERSION",     "APK Version (e.g. 49902)"),
     ("IPTV_DEVICE_SN",       "Device SN (serial number hash)"),
-    ("IPTV_DEVICE_DRM_ID",   "Device DRM ID"),
-    ("IPTV_DEVICE_TOKEN",    "Device Token (Firebase token)"),
-    ("IPTV_DEVICE_RESERVE1", "Device Reserve1 (hex-encoded field)"),
 ]
 
 OPTIONAL_VARS = [
-    ("IPTV_USERNAME",     "Login email (leave empty to skip)"),
-    ("IPTV_PASSWORD",     "Encrypted password (leave empty to skip)"),
-    ("IPTV_DOWNLOAD_DIR", "Download directory"),
+    ("IPTV_APK_VERSION",     "APK Version (leave empty for default)"),
+    ("IPTV_DEVICE_DRM_ID",   "Device DRM ID (leave empty to skip)"),
+    ("IPTV_DEVICE_TOKEN",    "Device Token (leave empty to skip)"),
+    ("IPTV_DEVICE_RESERVE1", "Device Reserve1 (leave empty to skip)"),
+    ("IPTV_USERNAME",        "Login email (leave empty to skip)"),
+    ("IPTV_PASSWORD",        "Encrypted password (leave empty to skip)"),
+    ("IPTV_DOWNLOAD_DIR",    "Download directory"),
 ]
 
 def env_is_ready():
@@ -1708,15 +1908,17 @@ def run_setup(reason):
         "# API hosts",
         f"IPTV_HOSTS={values.get('IPTV_HOSTS', '')}",
         "",
-        "# Device fingerprint",
+        "# Device fingerprint (only SN is required)",
         f"IPTV_DEVICE_SN={values.get('IPTV_DEVICE_SN', '')}",
-        f"IPTV_DEVICE_DRM_ID={values.get('IPTV_DEVICE_DRM_ID', '')}",
-        f"IPTV_DEVICE_TOKEN={values.get('IPTV_DEVICE_TOKEN', '')}",
-        f"IPTV_DEVICE_RESERVE1={values.get('IPTV_DEVICE_RESERVE1', '')}",
         "",
         "# APK identity",
         f"IPTV_APP_ID={values.get('IPTV_APP_ID', '')}",
+        "",
+        "# Optional device/APK fields (server accepts empty)",
         f"IPTV_APK_VERSION={values.get('IPTV_APK_VERSION', '')}",
+        f"IPTV_DEVICE_DRM_ID={values.get('IPTV_DEVICE_DRM_ID', '')}",
+        f"IPTV_DEVICE_TOKEN={values.get('IPTV_DEVICE_TOKEN', '')}",
+        f"IPTV_DEVICE_RESERVE1={values.get('IPTV_DEVICE_RESERVE1', '')}",
         "",
         "# Login credentials (optional)",
         f"IPTV_USERNAME={values.get('IPTV_USERNAME', '')}",

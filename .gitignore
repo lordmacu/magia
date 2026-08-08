@@ -8,6 +8,9 @@ dragonball/
 .last_search.json
 .last_seasons.json
 
+# Internal docs (not for repo)
+ENV_EXTRACTION_GUIDE.md
+
 # PyInstaller
 build/
 dist/

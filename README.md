@@ -68,11 +68,11 @@ cp .env.example .env
 | `IPTV_3DES_KEY` | Yes | 3DES encryption key (48 hex chars) — from APK analysis |
 | `IPTV_HOSTS` | Yes | API host(s), comma-separated (primary,fallback) |
 | `IPTV_APP_ID` | Yes | APK package identifier |
-| `IPTV_APK_VERSION` | Yes | APK internal version code |
 | `IPTV_DEVICE_SN` | Yes | Device serial number (fingerprint) |
-| `IPTV_DEVICE_DRM_ID` | Yes | DRM device identifier |
-| `IPTV_DEVICE_TOKEN` | Yes | Firebase/push device token |
-| `IPTV_DEVICE_RESERVE1` | Yes | Reserved device field |
+| `IPTV_APK_VERSION` | No | APK internal version code (server accepts empty) |
+| `IPTV_DEVICE_DRM_ID` | No | DRM device identifier (server accepts empty) |
+| `IPTV_DEVICE_TOKEN` | No | Firebase/push device token (server accepts empty) |
+| `IPTV_DEVICE_RESERVE1` | No | Reserved device field (server accepts empty) |
 | `IPTV_USERNAME` | No | Account email (for premium tier) |
 | `IPTV_PASSWORD` | No | Encrypted password (for premium tier) |
 | `IPTV_DOWNLOAD_DIR` | No | Download folder name (default: `downloads`) |

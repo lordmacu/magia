@@ -210,7 +210,7 @@ $skipEnv = $false
 
 if (Test-Path $envFile) {
     $envContent = Get-Content $envFile -Raw
-    $requiredVars = @("IPTV_3DES_KEY", "IPTV_HOSTS", "IPTV_APP_ID", "IPTV_APK_VERSION", "IPTV_DEVICE_SN", "IPTV_DEVICE_DRM_ID", "IPTV_DEVICE_TOKEN", "IPTV_DEVICE_RESERVE1")
+    $requiredVars = @("IPTV_3DES_KEY", "IPTV_HOSTS", "IPTV_APP_ID", "IPTV_DEVICE_SN")
     $envComplete = $true
     foreach ($v in $requiredVars) {
         if ($envContent -notmatch "(?m)^${v}=.+") {
@@ -251,15 +251,13 @@ if (-not $skipEnv) {
     $env3DES     = Ask-Val "3DES Key (48 hex chars)"
     $envHosts    = Ask-Val "API Hosts (comma-separated)"
     $envAppId    = Ask-Val "App ID"
-    $envApkVer   = Ask-Val "APK Version"
-    Write-Host ""
-    Write-Host "  -- Device Fingerprint --" -ForegroundColor Cyan
     $envSN       = Ask-Val "Device SN"
+    Write-Host ""
+    Write-Host "  -- Optional (press Enter to skip) --" -ForegroundColor Cyan
+    $envApkVer   = Ask-Val "APK Version" "49902"
     $envDRM      = Ask-Val "Device DRM ID"
     $envToken    = Ask-Val "Device Token"
     $envReserve1 = Ask-Val "Device Reserve1"
-    Write-Host ""
-    Write-Host "  -- Optional (press Enter to skip) --" -ForegroundColor Cyan
     $envUser     = Ask-Val "Login username/email"
     $envPass     = Ask-Val "Login encrypted password"
     $envDlDir    = Ask-Val "Download directory" "downloads"
@@ -273,15 +271,17 @@ IPTV_3DES_KEY=$env3DES
 # API hosts (comma-separated, primary + fallback)
 IPTV_HOSTS=$envHosts
 
-# Device fingerprint
+# Device fingerprint (only SN is required)
 IPTV_DEVICE_SN=$envSN
-IPTV_DEVICE_DRM_ID=$envDRM
-IPTV_DEVICE_TOKEN=$envToken
-IPTV_DEVICE_RESERVE1=$envReserve1
 
 # APK identity
 IPTV_APP_ID=$envAppId
+
+# Optional device/APK fields (server accepts empty)
 IPTV_APK_VERSION=$envApkVer
+IPTV_DEVICE_DRM_ID=$envDRM
+IPTV_DEVICE_TOKEN=$envToken
+IPTV_DEVICE_RESERVE1=$envReserve1
 
 # Login credentials (optional)
 IPTV_USERNAME=$envUser

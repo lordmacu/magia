@@ -201,7 +201,7 @@ SKIP_ENV=0
 if [ -f "$INSTALL_DIR/.env" ]; then
     # Check if required fields have values
     _env_complete=1
-    for _var in IPTV_3DES_KEY IPTV_HOSTS IPTV_APP_ID IPTV_APK_VERSION IPTV_DEVICE_SN IPTV_DEVICE_DRM_ID IPTV_DEVICE_TOKEN IPTV_DEVICE_RESERVE1; do
+    for _var in IPTV_3DES_KEY IPTV_HOSTS IPTV_APP_ID IPTV_DEVICE_SN; do
         _val=$(grep "^${_var}=" "$INSTALL_DIR/.env" 2>/dev/null | cut -d= -f2-)
         if [ -z "$_val" ]; then
             _env_complete=0
@@ -244,15 +244,13 @@ if [ "${SKIP_ENV:-0}" = "0" ]; then
     ask_val "3DES Key (48 hex chars)" "" ENV_3DES_KEY
     ask_val "API Hosts (comma-separated)" "" ENV_HOSTS
     ask_val "App ID" "" ENV_APP_ID
-    ask_val "APK Version" "" ENV_APK_VER
-    echo ""
-    echo -e "  ${C}── Device Fingerprint ──${R}"
     ask_val "Device SN" "" ENV_SN
+    echo ""
+    echo -e "  ${C}── Optional (press Enter to skip) ──${R}"
+    ask_val "APK Version" "49902" ENV_APK_VER
     ask_val "Device DRM ID" "" ENV_DRM
     ask_val "Device Token" "" ENV_TOKEN
     ask_val "Device Reserve1" "" ENV_RESERVE1
-    echo ""
-    echo -e "  ${C}── Optional (press Enter to skip) ──${R}"
     ask_val "Login username/email" "" ENV_USER
     ask_val "Login encrypted password" "" ENV_PASS
     ask_val "Download directory" "downloads" ENV_DLDIR
@@ -266,7 +264,7 @@ IPTV_3DES_KEY=$ENV_3DES_KEY
 # API hosts (comma-separated, primary + fallback)
 IPTV_HOSTS=$ENV_HOSTS
 
-# Device fingerprint
+# Device fingerprint (only SN is required)
 IPTV_DEVICE_SN=$ENV_SN
 IPTV_DEVICE_DRM_ID=$ENV_DRM
 IPTV_DEVICE_TOKEN=$ENV_TOKEN
