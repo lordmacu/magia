@@ -43,9 +43,62 @@ foreach ($cmd in @("python3", "python", "py")) {
 }
 
 if (-not $PYTHON) {
-    Fail "Python >= 3.8 not found. Install from https://python.org/downloads"
+    Warn "Python >= 3.8 not found. Attempting to install..."
+
+    $installed = $false
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        Info "Installing with winget..."
+        try {
+            winget install Python.Python.3.12 --accept-source-agreements --accept-package-agreements 2>&1 | Out-Null
+            $installed = $true
+        } catch {}
+    }
+    if (-not $installed -and (Get-Command choco -ErrorAction SilentlyContinue)) {
+        Info "Installing with Chocolatey..."
+        try {
+            choco install python3 -y 2>&1 | Out-Null
+            $installed = $true
+        } catch {}
+    }
+    if (-not $installed) {
+        Info "Downloading Python installer from python.org..."
+        $pyUrl = "https://www.python.org/ftp/python/3.12.4/python-3.12.4-amd64.exe"
+        $pyInstaller = "$env:TEMP\python-installer.exe"
+        try {
+            Invoke-WebRequest -Uri $pyUrl -OutFile $pyInstaller -UseBasicParsing
+            Info "Running installer (this may take a minute)..."
+            Start-Process -Wait -FilePath $pyInstaller -ArgumentList "/quiet", "InstallAllUsers=0", "PrependPath=1", "Include_pip=1"
+            Remove-Item $pyInstaller -Force -ErrorAction SilentlyContinue
+            $installed = $true
+        } catch {
+            Fail "Could not download or run Python installer. Install manually: https://python.org/downloads"
+        }
+    }
+
+    # Refresh PATH
+    $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH", "User")
+
+    $PYTHON = $null
+    foreach ($cmd in @("python3", "python", "py")) {
+        try {
+            $ver = & $cmd --version 2>&1
+            if ($ver -match "Python (\d+\.\d+)") {
+                $major, $minor = $Matches[1] -split '\.'
+                if ([int]$major -ge 3 -and [int]$minor -ge 8) {
+                    $PYTHON = $cmd
+                    break
+                }
+            }
+        } catch {}
+    }
+
+    if (-not $PYTHON) {
+        Fail "Python installation failed. Install manually: https://python.org/downloads"
+    }
+    Ok "Python installed: $PYTHON ($ver)"
+} else {
+    Ok "Python found: $PYTHON ($ver)"
 }
-Ok "Python found: $PYTHON ($ver)"
 
 # ═══════════════════════════════════════
 # 2. Check pip

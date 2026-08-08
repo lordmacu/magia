@@ -58,12 +58,52 @@ for cmd in python3 python; do
 done
 
 if [ -z "$PYTHON" ]; then
-    fail "Python >= $MIN_PYTHON no encontrado. Instálalo primero:
-         macOS:   brew install python3
-         Ubuntu:  sudo apt install python3 python3-pip
-         Windows: https://python.org/downloads"
+    warn "Python >= $MIN_PYTHON no encontrado. Intentando instalar..."
+
+    if [ "$(uname)" = "Darwin" ]; then
+        if command -v brew &>/dev/null; then
+            info "Instalando con Homebrew..."
+            brew install python3 || fail "No se pudo instalar Python con brew"
+        else
+            info "Homebrew no encontrado, instalando Homebrew primero..."
+            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || fail "No se pudo instalar Homebrew"
+            eval "$(/opt/homebrew/bin/brew shellenv 2>/dev/null || /usr/local/bin/brew shellenv 2>/dev/null)"
+            brew install python3 || fail "No se pudo instalar Python con brew"
+        fi
+    elif command -v apt-get &>/dev/null; then
+        info "Instalando con apt..."
+        sudo apt-get update -qq && sudo apt-get install -y python3 python3-pip python3-venv || fail "No se pudo instalar Python con apt"
+    elif command -v dnf &>/dev/null; then
+        info "Instalando con dnf..."
+        sudo dnf install -y python3 python3-pip || fail "No se pudo instalar Python con dnf"
+    elif command -v pacman &>/dev/null; then
+        info "Instalando con pacman..."
+        sudo pacman -S --noconfirm python python-pip || fail "No se pudo instalar Python con pacman"
+    elif command -v pkg &>/dev/null; then
+        info "Instalando con pkg..."
+        pkg install -y python3 || fail "No se pudo instalar Python con pkg"
+    else
+        fail "No se pudo detectar gestor de paquetes. Instala Python manualmente:
+             https://python.org/downloads"
+    fi
+
+    for cmd in python3 python; do
+        if command -v "$cmd" &>/dev/null; then
+            ver=$("$cmd" --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+            if [ -n "$ver" ] && version_gte "$ver" "$MIN_PYTHON"; then
+                PYTHON="$cmd"
+                break
+            fi
+        fi
+    done
+
+    if [ -z "$PYTHON" ]; then
+        fail "La instalación de Python falló. Instálalo manualmente: https://python.org/downloads"
+    fi
+    ok "Python instalado: $PYTHON ($ver)"
+else
+    ok "Python encontrado: $PYTHON ($ver)"
 fi
-ok "Python encontrado: $PYTHON ($ver)"
 
 # ═══════════════════════════════════════
 # 2. Verificar pip
