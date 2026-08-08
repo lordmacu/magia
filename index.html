@@ -582,7 +582,7 @@ footer a:hover { color: var(--accent); }
         <p>Clone, install deps, configure <code>.env</code> yourself.</p>
         <div class="code-block">git clone https://github.com/lordmacu/magia.git
 cd magia
-pip install pycryptodome requests
+pip install pycryptodome requests rich InquirerPy
 cp .env.example .env
 python3 magia.py</div>
       </div>
@@ -752,154 +752,216 @@ function copyInstall(el) {
       '<span class="t-cyan t-bold">  ██║╚██╔╝██║██╔══██║██║   ██║██║██╔══██║</span>',
       '<span class="t-cyan t-bold">  ██║ ╚═╝ ██║██║  ██║╚██████╔╝██║██║  ██║</span>',
       '<span class="t-cyan t-bold">  ╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝╚═╝  ╚═╝</span>',
-      '', '  <span class="t-dim">IPTV Media Tool — Search, Stream & Download</span>', '',
+      '', '  <span class="t-dim">IPTV Media Tool -- Search, Stream & Download</span>', '',
     ], speed:25},
 
-    // ── Auth menu ──
+    // ── Auth panel ──
     {a:'wait', ms:400},
     {a:'print', lines:[
-      '  <span class="t-cyan t-bold">┌────────────────────────────────────────────┐</span>',
-      '  <span class="t-cyan t-bold">│ Authentication                             │</span>',
-      '  <span class="t-cyan t-bold">└────────────────────────────────────────────┘</span>',
-      '',
-      '  <span class="t-accent"> 1</span>  Free tier (no login)  <span class="t-dim">auto-activates</span>',
-      '  <span class="t-accent"> 2</span>  Login with account    <span class="t-dim">email + password</span>',
-      '',
+      '  <span class="t-cyan">╭──────────────────────────────────────────────╮</span>',
+      '  <span class="t-cyan">│</span> <span class="t-bold">Authentication</span>                               <span class="t-cyan">│</span>',
+      '  <span class="t-cyan">╰──────────────────────────────────────────────╯</span>',
     ], speed:35},
 
-    // ── User types "1" ──
-    {a:'type', prompt:'  <span class="t-accent">></span> Select authentication: ', text:'1', speed:120},
+    // ── Arrow menu: auth ──
     {a:'wait', ms:300},
+    {a:'print', lines:[
+      '  <span class="t-dim">?</span> Select authentication:',
+      '  <span class="t-cyan t-bold">></span> <span class="t-cyan">Free tier (no login)</span>  <span class="t-dim">auto-activates, access to free content</span>',
+      '    Login with account  <span class="t-dim">email + password for premium content</span>',
+      '   ──────────────────',
+      '    <span class="t-dim">&lt;- Back</span>',
+    ], speed:30},
+    {a:'wait', ms:800},
+
+    // ── Selection made ──
     {a:'print', lines:[
       '  <span class="t-cyan">i</span>  Connecting to IPTV portal...',
     ], speed:0},
     {a:'wait', ms:900},
     {a:'print', lines:[
-      '  <span class="t-green">✓</span>  Connected (free tier) — userId=<span class="t-dim">a7c2e...</span>',
+      '  <span class="t-green">></span>  Connected (free tier) -- userId=<span class="t-dim">a7c2e...</span>',
       '  <span class="t-cyan">i</span>  Getting CDN authorization...',
     ], speed:50},
     {a:'wait', ms:700},
     {a:'print', lines:[
-      '  <span class="t-green">✓</span>  CDN ready — auth valid for <span class="t-green">47.2 hours</span>',
+      '  <span class="t-green">></span>  CDN ready -- auth valid for <span class="t-green">47.2 hours</span>',
       '',
     ], speed:50},
 
-    // ── Main menu ──
+    // ── Main menu panel ──
     {a:'wait', ms:300},
     {a:'print', lines:[
-      '  <span class="t-cyan t-bold">┌────────────────────────────────────────────┐</span>',
-      '  <span class="t-cyan t-bold">│ Main Menu                                 │</span>',
-      '  <span class="t-cyan t-bold">└────────────────────────────────────────────┘</span>',
-      '',
-      '  <span class="t-accent"> 1</span>  Search             <span class="t-dim">search by name</span>',
-      '  <span class="t-accent"> 2</span>  Latest             <span class="t-dim">newest content</span>',
-      '  <span class="t-accent"> 3</span>  By Genre           <span class="t-dim">Action, Comedy...</span>',
-      '  <span class="t-accent"> 4</span>  By Year            <span class="t-dim">2026, 2025...</span>',
-      '  <span class="t-accent"> 5</span>  By Country         <span class="t-dim">Japan, USA...</span>',
-      '  <span class="t-accent"> 6</span>  By Actor           <span class="t-dim">find by person</span>',
-      '  <span class="t-accent"> 7</span>  Recommendations    <span class="t-dim">"if you liked X"</span>',
-      '  <span class="t-accent"> 8</span>  Live TV            <span class="t-dim">1000+ channels</span>',
-      '',
-    ], speed:30},
+      '  <span class="t-cyan">╭──────────────────────────────────────────────╮</span>',
+      '  <span class="t-cyan">│</span> <span class="t-bold">Main Menu</span>                                    <span class="t-cyan">│</span>',
+      '  <span class="t-cyan">╰──────────────────────────────────────────────╯</span>',
+    ], speed:35},
 
-    // ── User picks search ──
-    {a:'type', prompt:'  <span class="t-accent">></span> Choose: ', text:'1', speed:150},
+    // ── Arrow menu: main ──
     {a:'wait', ms:200},
+    {a:'print', lines:[
+      '  <span class="t-dim">?</span> Select:',
+      '  <span class="t-cyan t-bold">></span> <span class="t-cyan">Search</span>             <span class="t-dim">find by name</span>',
+      '    Latest             <span class="t-dim">browse newest movies & series</span>',
+      '    By Genre           <span class="t-dim">Action, Comedy, Horror, Anime...</span>',
+      '    By Year            <span class="t-dim">2026, 2025, 2024...</span>',
+      '    By Country         <span class="t-dim">Japan, South Korea, USA...</span>',
+      '    By Actor/Director  <span class="t-dim">search by person</span>',
+      '    Recommendations    <span class="t-dim">similar to a title you like</span>',
+      '    Live TV            <span class="t-dim">1000+ channels by category</span>',
+      '    Help               <span class="t-dim">usage guide</span>',
+      '    Exit',
+    ], speed:25},
+    {a:'wait', ms:900},
 
     // ── User types search query ──
-    {a:'type', prompt:'  <span class="t-accent">></span> Search: ', text:'dragon ball', speed:75},
+    {a:'type', prompt:'  <span class="t-dim">?</span> Search: ', text:'dragon ball', speed:75},
     {a:'wait', ms:200},
-    {a:'print', lines:['  <span class="t-cyan">i</span>  Searching...'], speed:0},
+    {a:'print', lines:['  <span class="t-cyan">i</span>  Searching \'dragon ball\'...'], speed:0},
     {a:'wait', ms:800},
-    {a:'print', lines:[
-      '  <span class="t-green">✓</span>  Found <span class="t-green">15</span> results',
-      '',
-      '  <span class="t-accent"> 1</span>  <span class="t-cyan">[SERIE]</span> Dragon Ball                  <span class="t-dim">1986 | ★8.6 | Animation</span>',
-      '  <span class="t-accent"> 2</span>  <span class="t-green">[PELI]</span>  Dragon Ball Super: Broly     <span class="t-dim">2018 | ★7.9 | Action</span>',
-      '  <span class="t-accent"> 3</span>  <span class="t-green">[PELI]</span>  Dragon Ball Super: Hero      <span class="t-dim">2022 | ★7.3 | Animation</span>',
-      '  <span class="t-accent"> 4</span>  <span class="t-cyan">[SERIE]</span> Dragon Ball Z                <span class="t-dim">1989 | ★9.0 | Action</span>',
-      '  <span class="t-accent"> 5</span>  <span class="t-cyan">[SERIE]</span> Dragon Ball Super            <span class="t-dim">2015 | ★8.2 | Animation</span>',
-      '',
-    ], speed:40},
 
-    // ── User selects series ──
-    {a:'type', prompt:'  <span class="t-accent">></span> Select: ', text:'1', speed:180},
+    // ── Results panel + table ──
+    {a:'print', lines:[
+      '',
+      '  <span class="t-cyan">╭──────────────────────────────────────────────╮</span>',
+      '  <span class="t-cyan">│</span> <span class="t-bold">Results for \'dragon ball\' (15 total)</span>          <span class="t-cyan">│</span>',
+      '  <span class="t-cyan">╰──────────────────────────────────────────────╯</span>',
+    ], speed:35},
+    {a:'wait', ms:200},
+
+    // ── Rich table ──
+    {a:'print', lines:[
+      '  <span class="t-dim">╭─────┬────────┬──────────────────────────┬───────────────────────╮</span>',
+      '  <span class="t-dim">│</span> <span class="t-cyan t-bold">  # </span><span class="t-dim">│</span> <span class="t-bold"> Type </span> <span class="t-dim">│</span> <span class="t-bold"> Title                    </span><span class="t-dim">│</span> <span class="t-bold"> Info                  </span><span class="t-dim">│</span>',
+      '  <span class="t-dim">├─────┼────────┼──────────────────────────┼───────────────────────┤</span>',
+      '  <span class="t-dim">│</span> <span class="t-cyan">  1 </span><span class="t-dim">│</span> <span class="t-cyan">SERIE </span> <span class="t-dim">│</span> <span class="t-bold"> Dragon Ball</span>              <span class="t-dim">│ 1986 | <span class="t-yellow">*8.6</span> | Animation │</span>',
+      '  <span class="t-dim">│</span> <span class="t-cyan">  2 </span><span class="t-dim">│</span> <span class="t-green">MOVIE </span> <span class="t-dim">│</span> <span class="t-bold"> Dragon Ball Super: Broly</span> <span class="t-dim">│ 2018 | <span class="t-yellow">*7.9</span> | Action    │</span>',
+      '  <span class="t-dim">│</span> <span class="t-cyan">  3 </span><span class="t-dim">│</span> <span class="t-green">MOVIE </span> <span class="t-dim">│</span> <span class="t-bold"> Dragon Ball Super: Hero</span>  <span class="t-dim">│ 2022 | <span class="t-yellow">*7.3</span> | Animation │</span>',
+      '  <span class="t-dim">│</span> <span class="t-cyan">  4 </span><span class="t-dim">│</span> <span class="t-cyan">SERIE </span> <span class="t-dim">│</span> <span class="t-bold"> Dragon Ball Z</span>            <span class="t-dim">│ 1989 | <span class="t-yellow">*9.0</span> | Action    │</span>',
+      '  <span class="t-dim">│</span> <span class="t-cyan">  5 </span><span class="t-dim">│</span> <span class="t-cyan">SERIE </span> <span class="t-dim">│</span> <span class="t-bold"> Dragon Ball Super</span>        <span class="t-dim">│ 2015 | <span class="t-yellow">*8.2</span> | Animation │</span>',
+      '  <span class="t-dim">╰─────┴────────┴──────────────────────────┴───────────────────────╯</span>',
+    ], speed:30},
+
+    // ── Arrow select from results ──
     {a:'wait', ms:300},
     {a:'print', lines:[
       '',
-      '  <span class="t-cyan t-bold">┌────────────────────────────────────────────┐</span>',
-      '  <span class="t-cyan t-bold">│ Series: Dragon Ball                       │</span>',
-      '  <span class="t-cyan t-bold">└────────────────────────────────────────────┘</span>',
-      '  <span class="t-dim">1986 | ★8.6 | Animation,Action,Adventure</span>',
+      '  <span class="t-dim">?</span> Select:',
+      '  <span class="t-cyan t-bold">></span> <span class="t-cyan">1. Dragon Ball</span>',
+      '    2. Dragon Ball Super: Broly',
+      '    3. Dragon Ball Super: Hero',
+      '    4. Dragon Ball Z',
+      '    5. Dragon Ball Super',
+      '   ──────────────────',
+      '    <span class="t-dim">&lt;- Back</span>',
+    ], speed:25},
+    {a:'wait', ms:1000},
+
+    // ── Series panel ──
+    {a:'print', lines:[
       '',
-    ], speed:40},
+      '  <span class="t-cyan">╭──────────────────────────────────────────────╮</span>',
+      '  <span class="t-cyan">│</span> <span class="t-bold">Series: Dragon Ball</span>                          <span class="t-cyan">│</span>',
+      '  <span class="t-cyan">╰──────────────────────────────────────────────╯</span>',
+      '  <span class="t-dim">1986 | *8.6 | Animation,Action,Adventure</span>',
+      '',
+    ], speed:35},
     {a:'print', lines:['  <span class="t-cyan">i</span>  Loading episodes...'], speed:0},
     {a:'wait', ms:700},
     {a:'print', lines:[
-      '  <span class="t-green">✓</span>  Found <span class="t-green">153</span> episodes',
-      '',
-      '  <span class="t-accent"> 1</span>  Download ALL        <span class="t-dim">153 eps -> Dragon_Ball/</span>',
-      '  <span class="t-accent"> 2</span>  Download a range    <span class="t-dim">e.g. 1-10</span>',
-      '  <span class="t-accent"> 3</span>  Download single     <span class="t-dim">pick one</span>',
-      '  <span class="t-accent"> 4</span>  Browse episodes     <span class="t-dim">see all episodes</span>',
-      '  <span class="t-accent"> 5</span>  View details        <span class="t-dim">full info</span>',
-      '',
-    ], speed:35},
+      '  <span class="t-green">></span>  Found <span class="t-green">153</span> episodes',
+    ], speed:0},
 
-    // ── User picks range ──
-    {a:'type', prompt:'  <span class="t-accent">></span> Choose: ', text:'2', speed:140},
-    {a:'wait', ms:200},
-    {a:'type', prompt:'  <span class="t-accent">></span> From episode (1-153): ', text:'1', speed:130},
-    {a:'wait', ms:150},
-    {a:'type', prompt:'  <span class="t-accent">></span> To episode (1-153): ', text:'3', speed:130},
+    // ── Arrow menu: series actions ──
     {a:'wait', ms:300},
-
-    // ── Download section ──
     {a:'print', lines:[
       '',
-      '  <span class="t-cyan t-bold">┌────────────────────────────────────────────┐</span>',
-      '  <span class="t-cyan t-bold">│ Downloading: Dragon Ball ep 1-3           │</span>',
-      '  <span class="t-cyan t-bold">└────────────────────────────────────────────┘</span>',
-      '  <span class="t-cyan">i</span>  Format: h264/mp4 480p',
+      '  <span class="t-dim">?</span> What do you want to do?',
+      '    Download ALL episodes  <span class="t-dim">153 eps -> Dragon_Ball/</span>',
+      '  <span class="t-cyan t-bold">></span> <span class="t-cyan">Download a range</span>      <span class="t-dim">e.g. episodes 1-10</span>',
+      '    Download a single episode',
+      '    Browse episode list',
+      '    View details',
+      '   ──────────────────',
+      '    <span class="t-dim">&lt;- Back</span>',
+    ], speed:25},
+    {a:'wait', ms:800},
+
+    // ── User picks range ──
+    {a:'type', prompt:'  <span class="t-dim">?</span> From episode (1-153): ', text:'1', speed:130},
+    {a:'wait', ms:150},
+    {a:'type', prompt:'  <span class="t-dim">?</span> To episode (1-153): ', text:'3', speed:130},
+    {a:'wait', ms:300},
+
+    // ── Download panel ──
+    {a:'print', lines:[
+      '',
+      '  <span class="t-cyan">╭──────────────────────────────────────────────╮</span>',
+      '  <span class="t-cyan">│</span> <span class="t-bold">Downloading Dragon Ball: ep 1-3</span>               <span class="t-cyan">│</span>',
+      '  <span class="t-cyan">╰──────────────────────────────────────────────╯</span>',
       '  <span class="t-cyan">i</span>  Output: downloads/Dragon_Ball/',
       '',
     ], speed:35},
 
     // ── Episode 1 ──
-    {a:'print', lines:['  <span class="t-cyan">[001/153]</span> Dragon Ball ep 1'], speed:0},
+    {a:'print', lines:['  <span class="t-bold">[001/153]</span> Dragon Ball ep 1'], speed:0},
     {a:'wait', ms:300},
     {a:'bar', total:103.5, speed:4.2, color:'green'},
-    {a:'print', lines:['  <span class="t-green">✓</span>  <span class="t-green">103.5 MB</span> saved to Dragon_Ball/ep001.mp4',''], speed:0},
-    {a:'wait', ms:400},
-
-    // ── Episode 2 ──
-    {a:'print', lines:['  <span class="t-cyan">[002/153]</span> Dragon Ball ep 2'], speed:0},
-    {a:'wait', ms:300},
-    {a:'bar', total:98.7, speed:5.1, color:'green'},
-    {a:'print', lines:['  <span class="t-green">✓</span>  <span class="t-green">98.7 MB</span> saved to Dragon_Ball/ep002.mp4',''], speed:0},
-    {a:'wait', ms:400},
-
-    // ── Episode 3 ──
-    {a:'print', lines:['  <span class="t-cyan">[003/153]</span> Dragon Ball ep 3'], speed:0},
-    {a:'wait', ms:300},
-    {a:'bar', total:105.2, speed:4.8, color:'green'},
-    {a:'print', lines:['  <span class="t-green">✓</span>  <span class="t-green">105.2 MB</span> saved to Dragon_Ball/ep003.mp4'], speed:0},
-    {a:'wait', ms:300},
-
-    // ── Summary ──
     {a:'print', lines:[
-      '',
-      '  <span class="t-cyan t-bold">┌────────────────────────────────────────────┐</span>',
-      '  <span class="t-cyan t-bold">│ Download Complete                          │</span>',
-      '  <span class="t-cyan t-bold">└────────────────────────────────────────────┘</span>',
-      '',
-      '  <span class="t-green">Downloaded:</span>  3',
-      '  <span class="t-yellow">Skipped:</span>     0',
-      '  <span class="t-red">Failed:</span>      0',
-      '  <span class="t-cyan">Total size:</span>  0.30 GB',
-      '  <span class="t-dim">downloads/Dragon_Ball/</span>',
+      '  <span class="t-green">></span>  103.5 MB',
+      '  <span class="t-cyan">i</span>  Converting to MP4: ep001.mp4',
+      '  <span class="t-green">></span>  Converted: ep001.mp4',
       '',
     ], speed:40},
+    {a:'wait', ms:300},
+
+    // ── Episode 2 ──
+    {a:'print', lines:['  <span class="t-bold">[002/153]</span> Dragon Ball ep 2'], speed:0},
+    {a:'wait', ms:300},
+    {a:'bar', total:98.7, speed:5.1, color:'green'},
+    {a:'print', lines:[
+      '  <span class="t-green">></span>  98.7 MB',
+      '  <span class="t-cyan">i</span>  Converting to MP4: ep002.mp4',
+      '  <span class="t-green">></span>  Converted: ep002.mp4',
+      '',
+    ], speed:40},
+    {a:'wait', ms:300},
+
+    // ── Episode 3 ──
+    {a:'print', lines:['  <span class="t-bold">[003/153]</span> Dragon Ball ep 3'], speed:0},
+    {a:'wait', ms:300},
+    {a:'bar', total:105.2, speed:4.8, color:'green'},
+    {a:'print', lines:[
+      '  <span class="t-green">></span>  105.2 MB',
+      '  <span class="t-cyan">i</span>  Converting to MP4: ep003.mp4',
+      '  <span class="t-green">></span>  Converted: ep003.mp4',
+    ], speed:40},
+    {a:'wait', ms:300},
+
+    // ── Summary panel ──
+    {a:'print', lines:[
+      '',
+      '  <span class="t-cyan">╭──────────────────────────────────────────────╮</span>',
+      '  <span class="t-cyan">│</span> <span class="t-bold">Download Complete</span>                             <span class="t-cyan">│</span>',
+      '  <span class="t-cyan">╰──────────────────────────────────────────────╯</span>',
+    ], speed:35},
+
+    // ── Summary table ──
+    {a:'wait', ms:200},
+    {a:'print', lines:[
+      '    <span class="t-green">Downloaded</span>    3',
+      '    <span class="t-yellow">Skipped</span>       0',
+      '    <span class="t-red">Failed</span>        0',
+      '    <span class="t-cyan">Total size</span>    0.30 GB',
+      '    <span class="t-dim">Location</span>      downloads/Dragon_Ball/',
+      '',
+    ], speed:40},
+
+    // ── Confirm open folder ──
+    {a:'print', lines:[
+      '  <span class="t-dim">?</span> Open download folder? <span class="t-cyan">(Y/n)</span> <span class="t-green">Yes</span>',
+      '',
+    ], speed:0},
 
     // ── Pause before loop ──
     {a:'wait', ms:3500},
