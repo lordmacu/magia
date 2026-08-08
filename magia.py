@@ -286,11 +286,11 @@ def confirm(prompt, default=True):
 def select_menu(prompt, choices, back=True):
     items = []
     for label, hint in choices:
-        name = f"{label}  [dim]{hint}[/dim]" if hint else label
+        name = f"{label}  — {hint}" if hint else label
         items.append({"name": name, "value": label})
     if back:
         items.append(Separator())
-        items.append({"name": "[dim]<- Back[/dim]", "value": "__back__"})
+        items.append({"name": "<- Back", "value": "__back__"})
     try:
         result = inquirer.select(
             message=prompt,
@@ -565,7 +565,7 @@ def pick_from_list(items, title="Results", page_size=15):
         if page > 0:
             choices.append({"name": "<< Previous page", "value": "__prev__"})
         choices.append(Separator())
-        choices.append({"name": "[dim]<- Back[/dim]", "value": "__back__"})
+        choices.append({"name": "<- Back", "value": "__back__"})
 
         try:
             val = inquirer.select(
@@ -653,7 +653,7 @@ def browse_catalog(client, query="s", label="Latest"):
             choices.append({"name": f"{num}. {it.get('name', '?')}", "value": num - 1})
         choices.append(Separator())
         choices.append({"name": ">> Next page", "value": "__next__"})
-        choices.append({"name": "[dim]<- Back[/dim]", "value": "__back__"})
+        choices.append({"name": "<- Back", "value": "__back__"})
 
         try:
             val = inquirer.select(message="Select", choices=choices, pointer=">").execute()
@@ -891,7 +891,7 @@ def _browse_channels(client, channels, title):
         if page > 0:
             choices.append({"name": "<< Previous page", "value": "__prev__"})
         choices.append(Separator())
-        choices.append({"name": "[dim]<- Back[/dim]", "value": "__back__"})
+        choices.append({"name": "<- Back", "value": "__back__"})
 
         try:
             val = inquirer.select(message="Select", choices=choices, pointer=">").execute()
@@ -1808,7 +1808,7 @@ def main():
     # Main loop
     while True:
         section(t("main_menu"))
-        tg_label = f"{t('telegram')} [green]ON[/green]" if tg.is_configured() else t("telegram")
+        tg_label = f"{t('telegram')} (ON)" if tg.is_configured() else t("telegram")
         menu = [
             (t("search"),          t("search_hint")),
             (t("latest"),          t("latest_hint")),
