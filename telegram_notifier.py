@@ -8,6 +8,9 @@ import requests as _requests
 def _env_dir():
     if (Path.cwd() / ".env").exists():
         return Path.cwd()
+    home_magia = Path.home() / ".magia"
+    if (home_magia / ".env").exists():
+        return home_magia
     return Path(__file__).parent
 
 

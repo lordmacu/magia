@@ -225,10 +225,24 @@ def t(key, **kwargs):
         return s.format(**kwargs)
     return s
 
+def _is_frozen():
+    return getattr(sys, 'frozen', False)
+
+def _app_dir():
+    if _is_frozen():
+        return Path(sys.executable).parent
+    return Path(__file__).parent
+
 def _env_dir():
     if (Path.cwd() / ".env").exists():
         return Path.cwd()
-    return Path(__file__).parent
+    home_magia = Path.home() / ".magia"
+    if (home_magia / ".env").exists():
+        return home_magia
+    if _is_frozen():
+        home_magia.mkdir(parents=True, exist_ok=True)
+        return home_magia
+    return _app_dir()
 
 DEFAULT_OUT = _env_dir() / os.environ.get("IPTV_DOWNLOAD_DIR", "downloads")
 

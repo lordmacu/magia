@@ -34,6 +34,9 @@ def _find_env():
     cwd = Path.cwd() / ".env"
     if cwd.exists():
         return cwd
+    home_magia = Path.home() / ".magia" / ".env"
+    if home_magia.exists():
+        return home_magia
     script = Path(__file__).parent / ".env"
     if script.exists():
         return script

@@ -1,0 +1,76 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: magia-linux
+            asset_name: magia-linux
+          - os: macos-latest
+            artifact: magia-macos
+            asset_name: magia-macos
+          - os: windows-latest
+            artifact: magia-windows.exe
+            asset_name: magia-windows.exe
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install pyinstaller pycryptodome requests rich InquirerPy
+
+      - name: Build binary
+        run: |
+          pyinstaller magia.spec
+
+      - name: Rename artifact (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: mv dist/magia dist/${{ matrix.artifact }}
+
+      - name: Rename artifact (Windows)
+        if: runner.os == 'Windows'
+        run: mv dist/magia.exe dist/${{ matrix.artifact }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/magia-linux/magia-linux
+            artifacts/magia-macos/magia-macos
+            artifacts/magia-windows.exe/magia-windows.exe
+          generate_release_notes: true

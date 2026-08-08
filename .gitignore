@@ -7,3 +7,9 @@ dragonball/
 .active_series.json
 .last_search.json
 .last_seasons.json
+
+# PyInstaller
+build/
+dist/
+*.spec.bak
+__pycache__/
