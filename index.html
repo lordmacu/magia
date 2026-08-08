@@ -206,8 +206,10 @@ nav .links a:hover { color: var(--text-bright); text-decoration: none; }
   font-family: var(--font-mono);
   font-size: 0.82rem;
   line-height: 1.55;
-  min-height: 340px;
+  height: 380px;
+  overflow-y: auto;
   overflow-x: auto;
+  scroll-behavior: smooth;
 }
 .terminal-body .line { white-space: pre; }
 .terminal-body .t-cyan { color: var(--cyan); }
@@ -274,7 +276,10 @@ section + section { border-top: 1px solid var(--border); }
   transform: translateY(-2px);
 }
 .feature-card .icon {
-  font-size: 1.4rem;
+  font-family: var(--font-mono);
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--accent);
   margin-bottom: 0.75rem;
   display: block;
 }
@@ -455,7 +460,7 @@ footer a:hover { color: var(--accent); }
   .feature-grid { grid-template-columns: 1fr; }
   nav .links { gap: 1rem; }
   nav .links a { font-size: 0.78rem; }
-  .terminal-body { font-size: 0.72rem; padding: 1rem; min-height: 280px; }
+  .terminal-body { font-size: 0.72rem; padding: 1rem; height: 320px; }
 }
 
 /* ─── Prefers reduced motion ─── */
@@ -526,32 +531,32 @@ footer a:hover { color: var(--accent); }
 
     <div class="feature-grid">
       <div class="feature-card">
-        <span class="icon">&#x1F50D;</span>
+        <span class="icon">/</span>
         <h3>Search &amp; Browse</h3>
         <p>Search by name, genre, year, country, or actor. Browse the latest releases or get recommendations based on what you like.</p>
       </div>
       <div class="feature-card">
-        <span class="icon">&#x1F3AC;</span>
+        <span class="icon">&gt;</span>
         <h3>Download Movies</h3>
         <p>View full details — cast, score, description — then download in your preferred quality. H.264/MP4 preferred, H.265/TS fallback.</p>
       </div>
       <div class="feature-card">
-        <span class="icon">&#x1F4FA;</span>
+        <span class="icon">#</span>
         <h3>Download Series</h3>
         <p>Pick all episodes, a range, or just one. Auto-organized in named folders: <code>Dragon_Ball/ep001.mp4</code>.</p>
       </div>
       <div class="feature-card">
-        <span class="icon">&#x1F4E1;</span>
+        <span class="icon">~</span>
         <h3>Live TV</h3>
         <p>Browse 1,000+ channels across 30+ categories. Get stream credentials for your external player.</p>
       </div>
       <div class="feature-card">
-        <span class="icon">&#x1F512;</span>
+        <span class="icon">*</span>
         <h3>Zero Secrets in Code</h3>
         <p>All credentials, keys, and device fingerprints live in <code>.env</code>. Nothing hardcoded, nothing committed.</p>
       </div>
       <div class="feature-card">
-        <span class="icon">&#x26A1;</span>
+        <span class="icon">&amp;</span>
         <h3>Rate-Limit Aware</h3>
         <p>Respects API rate limits (1.5s between calls), auto-refreshes CDN tokens every 30 episodes, recovers from expired sessions.</p>
       </div>
