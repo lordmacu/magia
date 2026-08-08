@@ -129,9 +129,12 @@ fi
 # ═══════════════════════════════════════
 step "Instalando dependencias"
 
-DEPS="pycryptodome requests"
-for dep in $DEPS; do
-    if $PYTHON -c "import ${dep/pycryptodome/Crypto}" 2>/dev/null; then
+for dep in pycryptodome requests rich InquirerPy; do
+    case "$dep" in
+        pycryptodome) import_name="Crypto" ;;
+        *)            import_name="$dep" ;;
+    esac
+    if $PYTHON -c "import $import_name" 2>/dev/null; then
         ok "$dep ya instalado"
     else
         info "Instalando $dep..."
@@ -280,9 +283,9 @@ step "Verificación"
 
 cd "$INSTALL_DIR"
 $PYTHON -c "
+import rich, InquirerPy, requests, Crypto
 from iptv_client import IPTVClient
-from magia import banner
-print('  Módulos OK')
+print('  Modules OK')
 " 2>/dev/null && ok "Todos los módulos cargan correctamente" || warn "Verificación de módulos falló (puede funcionar igual)"
 
 echo ""

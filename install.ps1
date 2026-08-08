@@ -113,7 +113,7 @@ if (Test-Path "$INSTALL_DIR\.git") {
 # ═══════════════════════════════════════
 Step "Installing dependencies"
 
-$deps = @("pycryptodome", "requests")
+$deps = @("pycryptodome", "requests", "rich", "InquirerPy")
 foreach ($dep in $deps) {
     $importName = if ($dep -eq "pycryptodome") { "Crypto" } else { $dep }
     $installed = $false
@@ -263,7 +263,7 @@ Step "Verification"
 
 Push-Location $INSTALL_DIR
 try {
-    & $PYTHON -c "from iptv_client import IPTVClient; print('  Modules OK')" 2>&1 | Out-Null
+    & $PYTHON -c "import rich, InquirerPy, requests, Crypto; from iptv_client import IPTVClient; print('  Modules OK')" 2>&1 | Out-Null
     Ok "All modules load correctly"
 } catch {
     Warn "Module verification failed (may still work)"

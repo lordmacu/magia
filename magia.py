@@ -7,7 +7,7 @@ Usage:
     python3 magia.py                  Interactive mode (guided)
     python3 magia.py --help           Show this help
 
-Requires: pip install pycryptodome requests
+Requires: pip install pycryptodome requests rich InquirerPy
 """
 import os
 import re
@@ -21,24 +21,26 @@ from pathlib import Path
 import requests
 requests.packages.urllib3.disable_warnings()
 
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
+from rich.progress import Progress, BarColumn, DownloadColumn, TransferSpeedColumn, TimeRemainingColumn
+from rich.columns import Columns
+from rich.rule import Rule
+from rich.align import Align
+from rich import box
+from InquirerPy import inquirer
+from InquirerPy.separator import Separator
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from iptv_client import IPTVClient
 
-# ─── ANSI colors ───
-class C:
-    RESET   = "\033[0m"
-    BOLD    = "\033[1m"
-    DIM     = "\033[2m"
-    RED     = "\033[91m"
-    GREEN   = "\033[92m"
-    YELLOW  = "\033[93m"
-    BLUE    = "\033[94m"
-    MAGENTA = "\033[95m"
-    CYAN    = "\033[96m"
-    WHITE   = "\033[97m"
+console = Console()
 
 API_DELAY = 1.5
 DOWNLOAD_DELAY = 0.5
+
 def _env_dir():
     if (Path.cwd() / ".env").exists():
         return Path.cwd()
@@ -58,111 +60,91 @@ COUNTRIES = [
     "United Kingdom", "Spain", "Germany", "India", "Portugal",
 ]
 
-# ─── UI ───
-def clear():
-    os.system("cls" if os.name == "nt" else "clear")
+BANNER = """[bold cyan]
+  ███╗   ███╗ █████╗  ██████╗ ██╗ █████╗
+  ████╗ ████║██╔══██╗██╔════╝ ██║██╔══██╗
+  ██╔████╔██║███████║██║  ███╗██║███████║
+  ██║╚██╔╝██║██╔══██║██║   ██║██║██╔══██║
+  ██║ ╚═╝ ██║██║  ██║╚██████╔╝██║██║  ██║
+  ╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝╚═╝  ╚═╝
+[/bold cyan]"""
 
+
+# ─── UI helpers ───
 def banner():
-    print(f"\n{C.CYAN}{C.BOLD}")
-    print("  ███╗   ███╗ █████╗  ██████╗ ██╗ █████╗ ")
-    print("  ████╗ ████║██╔══██╗██╔════╝ ██║██╔══██╗")
-    print("  ██╔████╔██║███████║██║  ███╗██║███████║")
-    print("  ██║╚██╔╝██║██╔══██║██║   ██║██║██╔══██║")
-    print("  ██║ ╚═╝ ██║██║  ██║╚██████╔╝██║██║  ██║")
-    print("  ╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝╚═╝  ╚═╝")
-    print(f"{C.RESET}")
-    print(f"  {C.DIM}IPTV Media Tool — Search, Stream & Download{C.RESET}")
-    print(f"  {C.DIM}{'─' * 45}{C.RESET}\n")
+    console.print(BANNER)
+    console.print("  [dim]IPTV Media Tool -- Search, Stream & Download[/dim]\n")
 
 def section(title):
-    w = min(shutil.get_terminal_size((80, 24)).columns - 4, 56)
-    print(f"\n{C.CYAN}{C.BOLD}  ┌{'─' * w}┐{C.RESET}")
-    print(f"{C.CYAN}{C.BOLD}  │ {title:<{w - 1}}│{C.RESET}")
-    print(f"{C.CYAN}{C.BOLD}  └{'─' * w}┘{C.RESET}")
+    console.print()
+    console.print(Panel(f"[bold]{title}[/bold]", border_style="cyan", padding=(0, 2)))
 
-def info(msg):    print(f"  {C.BLUE}i{C.RESET}  {msg}")
-def success(msg): print(f"  {C.GREEN}✓{C.RESET}  {msg}")
-def warn(msg):    print(f"  {C.YELLOW}!{C.RESET}  {msg}")
-def error(msg):   print(f"  {C.RED}x{C.RESET}  {msg}")
+def info(msg):    console.print(f"  [blue]i[/blue]  {msg}")
+def success(msg): console.print(f"  [green]>[/green]  {msg}")
+def warn(msg):    console.print(f"  [yellow]![/yellow]  {msg}")
+def error(msg):   console.print(f"  [red]x[/red]  {msg}")
+
 
 def ask(prompt, default=""):
-    suffix = f" [{default}]" if default else ""
     try:
-        val = input(f"  {C.MAGENTA}>{C.RESET} {prompt}{suffix}: ").strip()
+        return inquirer.text(message=prompt, default=default).execute()
     except (KeyboardInterrupt, EOFError):
-        print()
         return None
-    return val or default
 
-def ask_int(prompt, lo, hi, default=None):
-    while True:
-        val = ask(prompt, str(default) if default is not None else "")
-        if val is None:
+
+def confirm(prompt, default=True):
+    try:
+        return inquirer.confirm(message=prompt, default=default).execute()
+    except (KeyboardInterrupt, EOFError):
+        return None
+
+
+def select_menu(prompt, choices, back=True):
+    items = []
+    for label, hint in choices:
+        name = f"{label}  [dim]{hint}[/dim]" if hint else label
+        items.append({"name": name, "value": label})
+    if back:
+        items.append(Separator())
+        items.append({"name": "[dim]<- Back[/dim]", "value": "__back__"})
+    try:
+        result = inquirer.select(
+            message=prompt,
+            choices=items,
+            pointer=">",
+            show_selected=True,
+        ).execute()
+        if result == "__back__":
             return None
-        try:
-            n = int(val)
-            if lo <= n <= hi:
-                return n
-            warn(f"Enter a number between {lo} and {hi}")
-        except ValueError:
-            warn("Enter a valid number")
+        for i, (label, _) in enumerate(choices):
+            if label == result:
+                return i
+        return None
+    except (KeyboardInterrupt, EOFError):
+        return None
 
-def choose(prompt, options, allow_back=True):
-    print()
-    for i, (label, extra) in enumerate(options, 1):
-        if extra:
-            print(f"  {C.CYAN}{i:>3}{C.RESET}  {label}  {C.DIM}{extra}{C.RESET}")
-        else:
-            print(f"  {C.CYAN}{i:>3}{C.RESET}  {label}")
-    if allow_back:
-        print(f"  {C.DIM}  0  <- Back{C.RESET}")
-    print()
-    while True:
-        val = ask(prompt)
-        if val is None:
-            return None, None
-        try:
-            n = int(val)
-            if n == 0 and allow_back:
-                return None, None
-            if 1 <= n <= len(options):
-                return n - 1, options[n - 1]
-            warn(f"Enter 1-{len(options)}" + (" or 0 to go back" if allow_back else ""))
-        except ValueError:
-            warn("Enter a number")
 
-def progress_bar(current, total, width=40, speed_mbps=0):
-    if total <= 0:
-        return
-    pct = min(current / total, 1.0)
-    filled = int(width * pct)
-    bar = "█" * filled + "░" * (width - filled)
-    cur_mb = current / (1024 * 1024)
-    tot_mb = total / (1024 * 1024)
-    speed_str = f" {speed_mbps:.1f} MB/s" if speed_mbps > 0 else ""
-    print(f"\r  {C.GREEN}{bar}{C.RESET} {pct*100:5.1f}%  {cur_mb:.1f}/{tot_mb:.1f} MB{speed_str}", end="", flush=True)
-
-def format_item(it):
-    ptype = it.get("programType", "?")
-    name = it.get("name", "?")
+def format_badge(ptype):
     if ptype in ("teleplay", "variety"):
-        badge = f"{C.BLUE}[SERIE]{C.RESET}"
+        return "[bold blue]SERIE[/bold blue]"
     elif ptype == "movie":
-        badge = f"{C.GREEN}[PELI]{C.RESET} "
-    else:
-        badge = f"{C.DIM}[{ptype[:5]}]{C.RESET}"
-    tags = it.get("tags", "")
-    rt = it.get("releaseTime", "")
+        return "[bold green]MOVIE[/bold green]"
+    return f"[dim]{ptype[:5]}[/dim]"
+
+
+def format_meta(item):
+    parts = []
+    rt = item.get("releaseTime", "")
     year = rt[:4] if rt else ""
-    score = it.get("score")
-    meta = []
     if year:
-        meta.append(year)
+        parts.append(year)
+    score = item.get("score")
     if score:
-        meta.append(f"★{score}")
+        parts.append(f"[yellow]*{score}[/yellow]")
+    tags = item.get("tags", "")
     if tags:
-        meta.append(tags[:35])
-    return f"{badge} {name}", " | ".join(meta)
+        parts.append(f"[dim]{tags[:35]}[/dim]")
+    return " | ".join(parts)
 
 
 # ─── CDN ───
@@ -225,15 +207,21 @@ def download_file(cdn_base, media_code, content_auth, content_license,
             total = int(r.headers.get("Content-Length", 0))
             downloaded = 0
             tmp_path = str(out_path) + ".tmp"
-            t0 = time.time()
-            with open(tmp_path, "wb") as f:
-                for chunk in r.iter_content(chunk_size=1024 * 1024):
-                    f.write(chunk)
-                    downloaded += len(chunk)
-                    elapsed = time.time() - t0
-                    speed = (downloaded / (1024 * 1024)) / elapsed if elapsed > 0 else 0
-                    progress_bar(downloaded, total, speed_mbps=speed)
-            print()
+            with Progress(
+                "[progress.description]{task.description}",
+                BarColumn(bar_width=40),
+                "[progress.percentage]{task.percentage:>3.1f}%",
+                DownloadColumn(),
+                TransferSpeedColumn(),
+                TimeRemainingColumn(),
+                console=console,
+            ) as progress:
+                task = progress.add_task("Downloading", total=total)
+                with open(tmp_path, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=1024 * 1024):
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        progress.update(task, completed=downloaded)
             if total and downloaded < total * 0.95:
                 os.unlink(tmp_path)
                 if attempt < retries - 1:
@@ -245,14 +233,12 @@ def download_file(cdn_base, media_code, content_auth, content_license,
             return downloaded, None
         except requests.exceptions.ConnectionError:
             if attempt < retries - 1:
-                print()
                 warn(f"Connection error, retry {attempt + 1}...")
                 time.sleep(3)
                 continue
             return 0, "connection failed"
         except Exception as e:
             if attempt < retries - 1:
-                print()
                 warn(f"Error: {e}, retry {attempt + 1}...")
                 time.sleep(2)
                 continue
@@ -318,7 +304,7 @@ def convert_ts_to_mp4(ts_path):
             success(f"Converted: {mp4_path.name}")
             return mp4_path
         else:
-            warn(f"Conversion failed, keeping .ts file")
+            warn("Conversion failed, keeping .ts file")
             return ts_path
     except subprocess.TimeoutExpired:
         warn("Conversion timed out, keeping .ts file")
@@ -357,37 +343,64 @@ def pick_from_list(items, title="Results", page_size=15):
         warn("No results")
         return None
 
-    options = [format_item(it) for it in items]
     total_pages = (len(items) - 1) // page_size + 1
     page = 0
 
     while True:
         start = page * page_size
         end = min(start + page_size, len(items))
-        print(f"\n  {C.DIM}─── {title} {start+1}-{end} of {len(items)} (page {page+1}/{total_pages}) ───{C.RESET}")
-        for i in range(start, end):
-            label, meta = options[i]
-            num = i + 1
-            if meta:
-                print(f"  {C.CYAN}{num:>4}{C.RESET}  {label}  {C.DIM}{meta}{C.RESET}")
-            else:
-                print(f"  {C.CYAN}{num:>4}{C.RESET}  {label}")
 
-        print(f"\n  {C.DIM}  [#] select  [n]ext  [p]rev  [b]ack{C.RESET}")
-        val = ask("Select")
-        if val is None or val.lower() == "b":
+        table = Table(
+            title=f"{title} ({start+1}-{end} of {len(items)}) -- page {page+1}/{total_pages}",
+            box=box.ROUNDED,
+            border_style="dim",
+            title_style="bold",
+            show_lines=False,
+            padding=(0, 1),
+        )
+        table.add_column("#", style="cyan", width=5, justify="right")
+        table.add_column("Type", width=7)
+        table.add_column("Title", style="bold")
+        table.add_column("Info", style="dim")
+
+        for i in range(start, end):
+            it = items[i]
+            badge = format_badge(it.get("programType", "?"))
+            meta = format_meta(it)
+            table.add_row(str(i + 1), badge, it.get("name", "?"), meta)
+
+        console.print()
+        console.print(table)
+
+        choices = []
+        for i in range(start, end):
+            it = items[i]
+            choices.append({"name": f"{i+1}. {it.get('name', '?')}", "value": i})
+        if page < total_pages - 1:
+            choices.append(Separator())
+            choices.append({"name": ">> Next page", "value": "__next__"})
+        if page > 0:
+            choices.append({"name": "<< Previous page", "value": "__prev__"})
+        choices.append(Separator())
+        choices.append({"name": "[dim]<- Back[/dim]", "value": "__back__"})
+
+        try:
+            val = inquirer.select(
+                message="Select",
+                choices=choices,
+                pointer=">",
+            ).execute()
+        except (KeyboardInterrupt, EOFError):
             return None
-        elif val.lower() == "n" and page < total_pages - 1:
+
+        if val == "__back__":
+            return None
+        elif val == "__next__":
             page += 1
-        elif val.lower() == "p" and page > 0:
+        elif val == "__prev__":
             page -= 1
         else:
-            try:
-                n = int(val)
-                if 1 <= n <= len(items):
-                    return items[n - 1]
-            except ValueError:
-                pass
+            return items[val]
 
 
 # ─── Search ───
@@ -429,30 +442,50 @@ def browse_catalog(client, query="s", label="Latest"):
             break
         all_items.extend(items)
 
-        section(f"{label} — page {page} ({total:,} total in catalog)")
-        options = [format_item(it) for it in items]
-        for i, (label_txt, meta) in enumerate(options, 1):
-            num = (page - 1) * 30 + i
-            if meta:
-                print(f"  {C.CYAN}{num:>4}{C.RESET}  {label_txt}  {C.DIM}{meta}{C.RESET}")
-            else:
-                print(f"  {C.CYAN}{num:>4}{C.RESET}  {label_txt}")
+        table = Table(
+            title=f"{label} -- page {page} ({total:,} total)",
+            box=box.ROUNDED,
+            border_style="dim",
+            title_style="bold",
+            show_lines=False,
+            padding=(0, 1),
+        )
+        table.add_column("#", style="cyan", width=5, justify="right")
+        table.add_column("Type", width=7)
+        table.add_column("Title", style="bold")
+        table.add_column("Info", style="dim")
 
-        print(f"\n  {C.DIM}  [#] select  [n]ext page  [b]ack{C.RESET}")
-        val = ask("Select")
-        if val is None or val.lower() == "b":
+        for i, it in enumerate(items, 1):
+            num = (page - 1) * 30 + i
+            badge = format_badge(it.get("programType", "?"))
+            meta = format_meta(it)
+            table.add_row(str(num), badge, it.get("name", "?"), meta)
+
+        console.print()
+        console.print(table)
+
+        choices = []
+        for i, it in enumerate(items, 1):
+            num = (page - 1) * 30 + i
+            choices.append({"name": f"{num}. {it.get('name', '?')}", "value": num - 1})
+        choices.append(Separator())
+        choices.append({"name": ">> Next page", "value": "__next__"})
+        choices.append({"name": "[dim]<- Back[/dim]", "value": "__back__"})
+
+        try:
+            val = inquirer.select(message="Select", choices=choices, pointer=">").execute()
+        except (KeyboardInterrupt, EOFError):
             return None
-        elif val.lower() == "n":
+
+        if val == "__back__":
+            return None
+        elif val == "__next__":
             page += 1
             time.sleep(API_DELAY)
             continue
         else:
-            try:
-                n = int(val)
-                if 1 <= n <= len(all_items):
-                    return all_items[n - 1]
-            except ValueError:
-                pass
+            if 0 <= val < len(all_items):
+                return all_items[val]
 
     return None
 
@@ -460,8 +493,8 @@ def browse_catalog(client, query="s", label="Latest"):
 # ─── Browse by genre ───
 def browse_by_genre(client):
     section("Browse by Genre")
-    options = [(g, "") for g in GENRES]
-    idx, _ = choose("Select genre", options)
+    choices = [(g, "") for g in GENRES]
+    idx = select_menu("Select genre", choices)
     if idx is None:
         return None
     genre = GENRES[idx]
@@ -472,8 +505,8 @@ def browse_by_genre(client):
 def browse_by_year(client):
     section("Browse by Year")
     years = [str(y) for y in range(2026, 1999, -1)]
-    options = [(y, "") for y in years[:15]]
-    idx, _ = choose("Select year", options)
+    choices = [(y, "") for y in years[:15]]
+    idx = select_menu("Select year", choices)
     if idx is None:
         return None
     year = years[idx]
@@ -483,8 +516,8 @@ def browse_by_year(client):
 # ─── Browse by country ───
 def browse_by_country(client):
     section("Browse by Country")
-    options = [(c, "") for c in COUNTRIES]
-    idx, _ = choose("Select country", options)
+    choices = [(c, "") for c in COUNTRIES]
+    idx = select_menu("Select country", choices)
     if idx is None:
         return None
     country = COUNTRIES[idx]
@@ -505,8 +538,8 @@ def search_by_person(client):
 
     if persons:
         section(f"People matching '{query}'")
-        p_options = [(p.get("name", "?"), "") for p in persons[:10]]
-        idx, _ = choose("Select person (or 0 for direct results)", p_options)
+        p_choices = [(p.get("name", "?"), "") for p in persons[:10]]
+        idx = select_menu("Select person (or back for direct results)", p_choices)
         if idx is not None:
             person = persons[idx]
             pu_id = person.get("puId", "")
@@ -547,7 +580,7 @@ def show_recommendations(client):
         warn("No results")
         return None
 
-    section(f"Pick a title to find similar content")
+    section("Pick a title to find similar content")
     source = pick_from_list(items, title="Source")
     if not source:
         return None
@@ -572,7 +605,6 @@ def handle_live(client, channel_item=None):
 
     section("Live TV Channels")
 
-    # Live categories
     info("Loading categories...")
     time.sleep(API_DELAY)
     cats = client.live_categories().get("recommendList", [])
@@ -585,45 +617,32 @@ def handle_live(client, channel_item=None):
         (77970, "Mas popular"),
         (76189, "24/7 Marathons"),
     ]
-    cat_options = [(name, "") for _, name in FEATURED_CATS]
-    # Add country categories
+
+    cat_choices = [(name, "") for _, name in FEATURED_CATS]
     country_cats = [(c.get("columnId"), c.get("name", "?")) for c in cats
                     if c.get("name") in ("Colombia", "Mexico", "Venezuela", "Chile",
                                          "Peru", "Ecuador", "Estados Unidos", "España")]
-    if country_cats:
-        cat_options.append((f"{C.BOLD}── By Country ──{C.RESET}", ""))
-        for cid, name in country_cats:
-            cat_options.append((f"  {name}", ""))
-    cat_options.append((f"{C.BOLD}── Other ──{C.RESET}", ""))
-    cat_options.append(("Search by name", "find a channel"))
-    other_cats = [(c.get("columnId"), c.get("name", "?")) for c in cats
-                  if c.get("columnId") not in [cid for cid, _ in FEATURED_CATS]
-                  and c.get("name") not in ("Colombia", "Mexico", "Venezuela", "Chile",
-                                            "Peru", "Ecuador", "Estados Unidos", "España")]
+    for _, name in country_cats:
+        cat_choices.append((f"  {name}", "by country"))
+    cat_choices.append(("Search by name", "find a channel"))
 
-    idx, _ = choose("Select category", cat_options)
+    idx = select_menu("Select category", cat_choices)
     if idx is None:
         return
 
-    # Determine which columnId to load
     if idx < len(FEATURED_CATS):
         col_id = FEATURED_CATS[idx][0]
         cat_name = FEATURED_CATS[idx][1]
-    elif idx == len(cat_options) - 1:
-        # Search by name
+    elif idx == len(cat_choices) - 1:
         _live_search(client)
         return
     else:
-        # Country or separator
-        label = cat_options[idx][0].strip()
-        if "──" in label:
+        country_idx = idx - len(FEATURED_CATS)
+        if 0 <= country_idx < len(country_cats):
+            col_id = country_cats[country_idx][0]
+            cat_name = country_cats[country_idx][1]
+        else:
             return
-        # Find matching category
-        match = next((c for c in cats if c.get("name") == label), None)
-        if not match:
-            return
-        col_id = match["columnId"]
-        cat_name = label
 
     info(f"Loading {cat_name}...")
     time.sleep(API_DELAY)
@@ -661,28 +680,51 @@ def _browse_channels(client, channels, title):
     while True:
         start = page * page_size
         end = min(start + page_size, len(channels))
-        print(f"\n  {C.DIM}─── {title} {start+1}-{end} of {len(channels)} (page {page+1}/{total_pages}) ───{C.RESET}")
-        for i, ch in enumerate(channels[start:end], start + 1):
-            name = ch.get("name", "?")
-            num = ch.get("channelNumber", "")
-            print(f"  {C.CYAN}{i:>4}{C.RESET}  {name}  {C.DIM}#{num}{C.RESET}")
 
-        print(f"\n  {C.DIM}  [#] select  [n]ext  [p]rev  [b]ack{C.RESET}")
-        val = ask("Select")
-        if val is None or val.lower() == "b":
+        table = Table(
+            title=f"{title} ({start+1}-{end} of {len(channels)}) -- page {page+1}/{total_pages}",
+            box=box.ROUNDED,
+            border_style="dim",
+            title_style="bold",
+            show_lines=False,
+            padding=(0, 1),
+        )
+        table.add_column("#", style="cyan", width=5, justify="right")
+        table.add_column("Channel", style="bold")
+        table.add_column("Number", style="dim", justify="right")
+
+        for i, ch in enumerate(channels[start:end], start + 1):
+            table.add_row(str(i), ch.get("name", "?"), f"#{ch.get('channelNumber', '')}")
+
+        console.print()
+        console.print(table)
+
+        choices = []
+        for i, ch in enumerate(channels[start:end], start + 1):
+            choices.append({"name": f"{i}. {ch.get('name', '?')}", "value": i})
+        if page < total_pages - 1:
+            choices.append(Separator())
+            choices.append({"name": ">> Next page", "value": "__next__"})
+        if page > 0:
+            choices.append({"name": "<< Previous page", "value": "__prev__"})
+        choices.append(Separator())
+        choices.append({"name": "[dim]<- Back[/dim]", "value": "__back__"})
+
+        try:
+            val = inquirer.select(message="Select", choices=choices, pointer=">").execute()
+        except (KeyboardInterrupt, EOFError):
             return
-        elif val.lower() == "n" and page < total_pages - 1:
+
+        if val == "__back__":
+            return
+        elif val == "__next__":
             page += 1
-        elif val.lower() == "p" and page > 0:
+        elif val == "__prev__":
             page -= 1
         else:
-            try:
-                n = int(val)
-                if 1 <= n <= len(channels):
-                    ch = channels[n - 1]
-                    show_live_url(client, ch["channelCode"], ch.get("name", ""))
-            except ValueError:
-                pass
+            if 1 <= val <= len(channels):
+                ch = channels[val - 1]
+                show_live_url(client, ch["channelCode"], ch.get("name", ""))
 
 
 def show_live_url(client, channel_code, channel_name):
@@ -700,14 +742,16 @@ def show_live_url(client, channel_code, channel_name):
     addr = addrs[0]
     license_str = addr.get("license", "")
 
-    print(f"""
-  {C.BOLD}Channel:{C.RESET}     {channel_name}
-  {C.BOLD}Play Code:{C.RESET}   {addr.get('playCode', channel_code)}
-  {C.BOLD}Format:{C.RESET}      {addr.get('AVFormat', 'ts')}
-  {C.BOLD}CDN Type:{C.RESET}    {addr.get('cdnType', '?')}
+    table = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
+    table.add_column("Key", style="bold")
+    table.add_column("Value")
+    table.add_row("Channel", channel_name)
+    table.add_row("Play Code", addr.get("playCode", channel_code))
+    table.add_row("Format", addr.get("AVFormat", "ts"))
+    table.add_row("CDN Type", addr.get("cdnType", "?"))
+    console.print(table)
 
-  {C.BOLD}License:{C.RESET}
-  {C.DIM}{license_str}{C.RESET}""")
+    console.print(f"\n  [bold]License:[/bold]\n  [dim]{license_str}[/dim]")
 
     seen = set()
     qualities = []
@@ -720,14 +764,17 @@ def show_live_url(client, channel_code, channel_name):
         qualities.append((pc, q))
 
     if len(qualities) > 1:
-        print(f"\n  {C.BOLD}Qualities:{C.RESET}")
+        console.print("\n  [bold]Qualities:[/bold]")
         for pc, q in qualities:
-            print(f"    {C.CYAN}-{C.RESET} {pc}  {C.DIM}({q}){C.RESET}")
+            console.print(f"    [cyan]-[/cyan] {pc}  [dim]({q})[/dim]")
 
-    print(f"""
-  {C.YELLOW}Note:{C.RESET} Live streams need SLB resolution for direct playback.
-        Use these credentials with the IPTV app or a compatible player.
-""")
+    console.print(Panel(
+        "Live streams need SLB resolution for direct playback.\n"
+        "Use these credentials with the IPTV app or a compatible player.",
+        border_style="yellow",
+        title="Note",
+        padding=(0, 1),
+    ))
 
 
 # ─── Detail view ───
@@ -753,21 +800,27 @@ def show_detail(client, item):
     country = asset.get("originalCountry") or item.get("originalCountry", "")
     duration = asset.get("duration") or item.get("duration", "")
 
-    if year:     print(f"  {C.BOLD}Year:{C.RESET}      {year}")
-    if score:    print(f"  {C.BOLD}Score:{C.RESET}     {score}")
-    if tags:     print(f"  {C.BOLD}Genre:{C.RESET}     {tags}")
-    if country:  print(f"  {C.BOLD}Country:{C.RESET}   {country}")
-    if duration: print(f"  {C.BOLD}Duration:{C.RESET}  {duration}")
-    if director: print(f"  {C.BOLD}Director:{C.RESET}  {director}")
-    if actors:   print(f"  {C.BOLD}Cast:{C.RESET}      {actors[:80]}")
-    if desc:     print(f"\n  {C.DIM}{desc[:200]}{C.RESET}")
+    table = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
+    table.add_column("Key", style="bold cyan")
+    table.add_column("Value")
+    if year:     table.add_row("Year", year)
+    if score:    table.add_row("Score", str(score))
+    if tags:     table.add_row("Genre", tags)
+    if country:  table.add_row("Country", country)
+    if duration: table.add_row("Duration", str(duration))
+    if director: table.add_row("Director", director)
+    if actors:   table.add_row("Cast", actors[:80])
+    console.print(table)
+
+    if desc:
+        console.print(Panel(desc[:300], title="Synopsis", border_style="dim", padding=(0, 1)))
 
     if is_series:
         eps = asset.get("simpleProgramList", [])
         if eps:
-            print(f"\n  {C.BOLD}Episodes:{C.RESET}  {len(eps)}")
+            console.print(f"\n  [bold]Episodes:[/bold] {len(eps)}")
 
-    print()
+    console.print()
 
 
 # ─── Series handler ───
@@ -777,17 +830,15 @@ def handle_series(client, item, cdn_base, cf_auth, out_dir):
 
     section(f"Series: {name}")
 
-    # Show basic info inline
     tags = item.get("tags", "")
     score = item.get("score", "")
     year = (item.get("releaseTime") or "")[:4]
     if any([tags, score, year]):
         parts = []
         if year: parts.append(year)
-        if score: parts.append(f"★{score}")
+        if score: parts.append(f"*{score}")
         if tags: parts.append(tags[:50])
-        print(f"  {C.DIM}{' | '.join(parts)}{C.RESET}")
-        print()
+        console.print(f"  [dim]{' | '.join(parts)}[/dim]\n")
 
     info("Loading episodes...")
     time.sleep(API_DELAY)
@@ -800,14 +851,14 @@ def handle_series(client, item, cdn_base, cf_auth, out_dir):
     safe_name = re.sub(r'[^\w\s\-]', '', name).strip().replace(' ', '_')
     series_dir = out_dir / safe_name
 
-    options = [
-        ("Download ALL episodes", f"{len(episodes)} eps -> {series_dir.name}/"),
+    choices = [
+        ("Download ALL episodes", f"{len(episodes)} eps -> {safe_name}/"),
         ("Download a range", "e.g. episodes 1-10"),
         ("Download a single episode", "pick one"),
         ("Browse episode list", "see all episodes"),
         ("View details", "full info about this series"),
     ]
-    idx, _ = choose("What do you want to do?", options)
+    idx = select_menu("What do you want to do?", choices)
     if idx is None:
         return
 
@@ -822,34 +873,61 @@ def handle_series(client, item, cdn_base, cf_auth, out_dir):
         while True:
             start = page * page_size
             end = min(start + page_size, len(episodes))
-            print(f"\n  {C.DIM}─── Episodes {start+1}-{end} of {len(episodes)} (page {page+1}/{total_pages}) ───{C.RESET}")
+
+            table = Table(
+                title=f"Episodes {start+1}-{end} of {len(episodes)} -- page {page+1}/{total_pages}",
+                box=box.ROUNDED,
+                border_style="dim",
+                title_style="bold",
+                show_lines=False,
+                padding=(0, 1),
+            )
+            table.add_column("#", style="cyan", width=5, justify="right")
+            table.add_column("Episode", style="bold")
+            table.add_column("Quality", style="dim")
+
             for ep in episodes[start:end]:
                 ep_num = ep.get("seriesNumber") or "?"
                 ep_name = ep.get("name", "")
                 q = ep.get("quality", "")
-                print(f"    {C.CYAN}{ep_num:>4}{C.RESET}  {ep_name}  {C.DIM}{q}{C.RESET}")
-            print()
-            nav = ask("[n]ext / [p]rev / [d]ownload / [b]ack", "n")
-            if nav is None or nav.lower() == "b":
+                table.add_row(str(ep_num), ep_name, q)
+
+            console.print()
+            console.print(table)
+
+            nav_choices = [
+                ("Next page", ""),
+                ("Previous page", ""),
+                ("Download", "proceed to download"),
+                ("Back", "return to menu"),
+            ]
+            nav = select_menu("Navigate", nav_choices, back=False)
+            if nav is None or nav == 3:
                 return
-            elif nav.lower() == "n" and page < total_pages - 1:
+            elif nav == 0 and page < total_pages - 1:
                 page += 1
-            elif nav.lower() == "p" and page > 0:
+            elif nav == 1 and page > 0:
                 page -= 1
-            elif nav.lower() == "d":
+            elif nav == 2:
                 break
         idx = 0
 
     if idx == 0:
         start_ep, end_ep = 1, len(episodes)
     elif idx == 1:
-        start_ep = ask_int(f"From episode (1-{len(episodes)})", 1, len(episodes), 1)
-        if start_ep is None: return
-        end_ep = ask_int(f"To episode ({start_ep}-{len(episodes)})", start_ep, len(episodes), len(episodes))
-        if end_ep is None: return
+        val = ask(f"From episode (1-{len(episodes)})", "1")
+        if val is None: return
+        try: start_ep = max(1, min(int(val), len(episodes)))
+        except ValueError: start_ep = 1
+        val = ask(f"To episode ({start_ep}-{len(episodes)})", str(len(episodes)))
+        if val is None: return
+        try: end_ep = max(start_ep, min(int(val), len(episodes)))
+        except ValueError: end_ep = len(episodes)
     elif idx == 2:
-        start_ep = ask_int(f"Episode number (1-{len(episodes)})", 1, len(episodes))
-        if start_ep is None: return
+        val = ask(f"Episode number (1-{len(episodes)})")
+        if val is None: return
+        try: start_ep = max(1, min(int(val), len(episodes)))
+        except ValueError: start_ep = 1
         end_ep = start_ep
     else:
         start_ep, end_ep = 1, len(episodes)
@@ -858,7 +936,7 @@ def handle_series(client, item, cdn_base, cf_auth, out_dir):
 
     section(f"Downloading {name}: ep {start_ep}-{end_ep}")
     info(f"Output: {series_dir}")
-    print()
+    console.print()
 
     stats = {"ok": 0, "fail": 0, "skip": 0}
     auth_counter = 0
@@ -872,11 +950,11 @@ def handle_series(client, item, cdn_base, cf_auth, out_dir):
         existing = [f for f in series_dir.glob(f"ep{ep_num:03d}.*")
                      if f.suffix in (".mp4", ".ts") and f.stat().st_size > 1_000_000]
         if existing:
-            print(f"  {C.DIM}[{ep_num:03d}/{len(episodes)}] SKIP ({existing[0].stat().st_size / 1e6:.1f} MB){C.RESET}")
+            console.print(f"  [dim][{ep_num:03d}/{len(episodes)}] SKIP ({existing[0].stat().st_size / 1e6:.1f} MB)[/dim]")
             stats["skip"] += 1
             continue
 
-        print(f"\n  {C.BOLD}[{ep_num:03d}/{len(episodes)}]{C.RESET} {ep.get('name', str(ep_num))}")
+        console.print(f"\n  [bold][{ep_num:03d}/{len(episodes)}][/bold] {ep.get('name', str(ep_num))}")
 
         auth_counter += 1
         if auth_counter > 30:
@@ -928,14 +1006,18 @@ def handle_series(client, item, cdn_base, cf_auth, out_dir):
     section("Download Complete")
     total_size = sum(f.stat().st_size for f in series_dir.iterdir()
                      if f.suffix in (".mp4", ".ts"))
-    print(f"""
-  {C.GREEN}Downloaded:{C.RESET}  {stats['ok']}
-  {C.YELLOW}Skipped:{C.RESET}    {stats['skip']}
-  {C.RED}Failed:{C.RESET}     {stats['fail']}
-  {C.BLUE}Total size:{C.RESET} {total_size / (1024**3):.2f} GB
-  {C.DIM}{series_dir}{C.RESET}
-""")
-    if (ask("Open download folder? (Y/n)", "y") or "").lower() != "n":
+
+    summary = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
+    summary.add_column("Stat", style="bold")
+    summary.add_column("Value")
+    summary.add_row("[green]Downloaded[/green]", str(stats["ok"]))
+    summary.add_row("[yellow]Skipped[/yellow]", str(stats["skip"]))
+    summary.add_row("[red]Failed[/red]", str(stats["fail"]))
+    summary.add_row("[blue]Total size[/blue]", f"{total_size / (1024**3):.2f} GB")
+    summary.add_row("[dim]Location[/dim]", str(series_dir))
+    console.print(summary)
+
+    if confirm("Open download folder?", default=True):
         open_folder(series_dir)
 
 
@@ -946,32 +1028,33 @@ def handle_movie(client, item, cdn_base, cf_auth, out_dir):
 
     section(f"Movie: {name}")
 
-    # Show basic info inline
     tags = item.get("tags", "")
     director = item.get("director", "")
     actors = item.get("actorDisplay", "")
     score = item.get("score", "")
     year = (item.get("releaseTime") or "")[:4]
     if any([tags, director, year, score]):
-        if year:     print(f"  {C.BOLD}Year:{C.RESET}      {year}")
-        if score:    print(f"  {C.BOLD}Score:{C.RESET}     {score}")
-        if tags:     print(f"  {C.BOLD}Genre:{C.RESET}     {tags}")
-        if director: print(f"  {C.BOLD}Director:{C.RESET}  {director}")
-        if actors:   print(f"  {C.BOLD}Cast:{C.RESET}      {actors[:60]}")
-        print()
+        table = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
+        table.add_column("Key", style="bold cyan")
+        table.add_column("Value")
+        if year:     table.add_row("Year", year)
+        if score:    table.add_row("Score", str(score))
+        if tags:     table.add_row("Genre", tags)
+        if director: table.add_row("Director", director)
+        if actors:   table.add_row("Cast", actors[:60])
+        console.print(table)
 
-    options = [
+    choices = [
         ("Download", "download the movie file"),
         ("View details", "full info (cast, description, streams)"),
     ]
-    idx, _ = choose("What do you want to do?", options)
+    idx = select_menu("What do you want to do?", choices)
     if idx is None:
         return
 
     if idx == 1:
         show_detail(client, item)
-        cont = ask("Download this movie? (y/N)", "n")
-        if not cont or cont.lower() != "y":
+        if not confirm("Download this movie?", default=False):
             return
 
     info("Getting streams...")
@@ -982,18 +1065,16 @@ def handle_movie(client, item, cdn_base, cf_auth, out_dir):
         error(f"Failed: {err}")
         return
 
-    print(f"  {C.BOLD}Available streams:{C.RESET}")
-    for i, s in enumerate(streams, 1):
-        print(f"    {C.CYAN}{i}{C.RESET}  {s['encode_format']}/{s['video_format']}  {C.DIM}{s['quality']}{C.RESET}")
-
-    stream_idx = 0
     if len(streams) > 1:
-        val = ask(f"Select stream (1-{len(streams)})", "1")
-        if val is None: return
-        try:
-            stream_idx = max(0, min(int(val) - 1, len(streams) - 1))
-        except ValueError:
-            pass
+        stream_choices = []
+        for s in streams:
+            stream_choices.append((f"{s['encode_format']}/{s['video_format']}  {s['quality']}", ""))
+        stream_idx = select_menu("Select stream quality", stream_choices, back=False)
+        if stream_idx is None:
+            stream_idx = 0
+    else:
+        stream_idx = 0
+        info(f"Stream: {streams[0]['encode_format']}/{streams[0]['video_format']} {streams[0]['quality']}")
 
     s = streams[stream_idx]
     safe_name = re.sub(r'[^\w\s\-]', '', name).strip().replace(' ', '_')
@@ -1001,13 +1082,13 @@ def handle_movie(client, item, cdn_base, cf_auth, out_dir):
 
     if out_file.exists() and out_file.stat().st_size > 1_000_000:
         warn(f"Already exists: {out_file.name} ({out_file.stat().st_size / 1e6:.1f} MB)")
-        if (ask("Overwrite? (y/N)", "n") or "").lower() != "y":
+        if not confirm("Overwrite?", default=False):
             return
 
     section(f"Downloading: {name}")
     info(f"Format: {s['encode_format']}/{s['video_format']} {s['quality']}")
     info(f"Output: {out_file}")
-    print()
+    console.print()
 
     size, dl_err = download_file(cdn_base, s["media_code"], cf_auth, s["license"],
                                  out_file, video_format=s["video_format"])
@@ -1022,49 +1103,62 @@ def handle_movie(client, item, cdn_base, cf_auth, out_dir):
     if dl_err:
         error(f"Download failed: {dl_err}")
         return
-    print()
+    console.print()
     if out_file.suffix == ".ts":
         out_file = convert_ts_to_mp4(out_file)
     success(f"Downloaded: {out_file.name} ({size / (1024*1024):.1f} MB)")
-    if (ask("Open download folder? (Y/n)", "y") or "").lower() != "n":
+    if confirm("Open download folder?", default=True):
         open_folder(out_file)
 
 
 # ─── Help ───
 def show_help():
     section("How to use Magia")
-    print(f"""
-  {C.BOLD}Magia{C.RESET} is an interactive IPTV tool.
 
-  {C.CYAN}--- Menu Options ---{C.RESET}
+    table = Table(
+        title="Menu Options",
+        box=box.ROUNDED,
+        border_style="cyan",
+        title_style="bold cyan",
+        padding=(0, 2),
+    )
+    table.add_column("Option", style="bold")
+    table.add_column("Description")
+    table.add_row("Search", "Search by name: 'dragon ball', 'naruto', 'broly'")
+    table.add_row("Latest", "Browse newest content (movies + series)")
+    table.add_row("By Genre", "Action, Comedy, Horror, Anime, Sci-Fi...")
+    table.add_row("By Year", "Filter by release year (2026, 2025...)")
+    table.add_row("By Country", "Japan, South Korea, USA, Mexico...")
+    table.add_row("By Actor", "Find content by actor or director name")
+    table.add_row("Recommendations", "'If you liked X, try Y'")
+    table.add_row("Live TV", "1000+ channels by category/country")
+    console.print(table)
 
-  {C.BOLD}1. Search{C.RESET}           Search by name. "dragon ball", "naruto", "broly"
-  {C.BOLD}2. Latest{C.RESET}           Browse newest content (movies + series)
-  {C.BOLD}3. By Genre{C.RESET}         Action, Comedy, Horror, Anime, Sci-Fi...
-  {C.BOLD}4. By Year{C.RESET}          Filter by release year (2026, 2025...)
-  {C.BOLD}5. By Country{C.RESET}       Japan, South Korea, USA, Mexico...
-  {C.BOLD}6. By Actor{C.RESET}         Find content by actor or director name
-  {C.BOLD}7. Recommendations{C.RESET}  "If you liked X, try Y"
-  {C.BOLD}8. Live TV{C.RESET}          1000+ channels by category/country
+    table2 = Table(
+        title="Content Types",
+        box=box.ROUNDED,
+        border_style="green",
+        title_style="bold green",
+        padding=(0, 2),
+    )
+    table2.add_column("Badge", width=8)
+    table2.add_column("Type")
+    table2.add_column("Action")
+    table2.add_row("[green]MOVIE[/green]", "Movie", "Select quality -> downloads immediately")
+    table2.add_row("[blue]SERIE[/blue]", "Series", "Pick episodes (all/range/single) -> downloads")
+    table2.add_row("[yellow]LIVE[/yellow]", "Channel", "Shows play code + license for player")
+    console.print(table2)
 
-  {C.CYAN}--- Content Types ---{C.RESET}
-
-  {C.GREEN}[PELI]{C.RESET}  Movie   -> select quality -> downloads immediately
-  {C.BLUE}[SERIE]{C.RESET} Series  -> pick episodes (all/range/single) -> downloads
-  {C.YELLOW}[LIVE]{C.RESET}  Channel -> shows play code + license for external player
-
-  {C.CYAN}--- Authentication ---{C.RESET}
-
-  {C.BOLD}Free tier:{C.RESET}  auto-activates, most content available
-  {C.BOLD}Login:{C.RESET}     email + encrypted password (for premium)
-
-  {C.CYAN}--- Tips ---{C.RESET}
-
-  Enter {C.BOLD}0{C.RESET} at any menu to go back
-  Press {C.BOLD}Ctrl+C{C.RESET} to exit
-  Downloaded episodes are auto-skipped on re-run
-  CDN auth refreshes every 30 episodes automatically
-""")
+    console.print(Panel(
+        "[bold]Free tier:[/bold]  auto-activates, most content available\n"
+        "[bold]Login:[/bold]     email + encrypted password (for premium)\n\n"
+        "Press [bold]Ctrl+C[/bold] to exit at any time\n"
+        "Downloaded episodes are auto-skipped on re-run\n"
+        "CDN auth refreshes every 30 episodes automatically",
+        title="Tips",
+        border_style="dim",
+        padding=(0, 2),
+    ))
 
 
 # ─── Route selected item ───
@@ -1111,17 +1205,20 @@ def run_setup(reason):
     section("First-Run Setup")
 
     if reason == "missing":
-        print(f"""
-  {C.BOLD}No .env file found.{C.RESET}
-  {C.DIM}Magia needs credentials to connect to the IPTV portal.{C.RESET}
-  {C.DIM}These values come from APK analysis (see README for details).{C.RESET}
-""")
-        print(f"  {C.YELLOW}Two options:{C.RESET}")
-        print(f"    {C.CYAN}1{C.RESET}  Fill in the values now (interactive wizard)")
-        print(f"    {C.CYAN}2{C.RESET}  Create a blank .env template to edit manually")
-        print()
-        choice = ask("Choose (1/2)", "1")
-        if choice == "2":
+        console.print(Panel(
+            "[bold]No .env file found.[/bold]\n\n"
+            "Magia needs credentials to connect to the IPTV portal.\n"
+            "These values come from APK analysis (see README for details).",
+            border_style="yellow",
+            padding=(1, 2),
+        ))
+
+        setup_choices = [
+            ("Fill in the values now", "interactive wizard"),
+            ("Create a blank .env template", "edit manually later"),
+        ]
+        choice = select_menu("Choose setup method", setup_choices, back=False)
+        if choice == 1:
             example = _env_dir() / ".env.example"
             if example.exists():
                 import shutil as _sh
@@ -1130,21 +1227,23 @@ def run_setup(reason):
                 env_path.write_text("\n".join(
                     f"{var}=" for var, _ in REQUIRED_VARS + OPTIONAL_VARS
                 ) + "\n")
-            print()
+            console.print()
             success(f".env template created at {env_path}")
             info("Edit it with your values, then run magia again.")
             sys.exit(0)
     else:
         missing = [label for var, label in REQUIRED_VARS if not os.environ.get(var, "")]
-        print(f"""
-  {C.BOLD}.env found but missing required values:{C.RESET}
-  {C.DIM}{', '.join(missing)}{C.RESET}
-""")
+        console.print(Panel(
+            "[bold].env found but missing required values:[/bold]\n\n"
+            + "\n".join(f"  - {m}" for m in missing),
+            border_style="yellow",
+            padding=(1, 2),
+        ))
 
     values = {}
 
-    print(f"  {C.CYAN}{C.BOLD}-- Required --{C.RESET}")
-    print()
+    console.print(Rule("Required", style="cyan"))
+    console.print()
     for var, label in REQUIRED_VARS:
         current = os.environ.get(var, "")
         while True:
@@ -1157,9 +1256,9 @@ def run_setup(reason):
                 break
             warn("This field is required.")
 
-    print()
-    print(f"  {C.CYAN}{C.BOLD}-- Optional (press Enter to skip) --{C.RESET}")
-    print()
+    console.print()
+    console.print(Rule("Optional (press Enter to skip)", style="dim"))
+    console.print()
     for var, label in OPTIONAL_VARS:
         current = os.environ.get(var, "")
         default = current if current else ("downloads" if var == "IPTV_DOWNLOAD_DIR" else "")
@@ -1202,14 +1301,14 @@ def run_setup(reason):
     from iptv_client import _load_dotenv
     _load_dotenv()
 
-    print()
+    console.print()
     success(f".env saved to {env_path}")
-    print()
+    console.print()
 
 
 # ─── Main ───
 def main():
-    clear()
+    os.system("cls" if os.name == "nt" else "clear")
     banner()
 
     if "--help" in sys.argv or "-h" in sys.argv:
@@ -1224,11 +1323,11 @@ def main():
 
     # Auth
     section("Authentication")
-    options = [
+    auth_choices = [
         ("Free tier (no login)", "auto-activates, access to free content"),
         ("Login with account", "email + password for premium content"),
     ]
-    auth_idx, _ = choose("Select authentication", options, allow_back=False)
+    auth_idx = select_menu("Select authentication", auth_choices, back=False)
     if auth_idx is None:
         return
 
@@ -1283,20 +1382,20 @@ def main():
     while True:
         section("Main Menu")
         menu = [
-            (f"{C.BOLD}Search{C.RESET}",            "find by name"),
-            (f"{C.BOLD}Latest{C.RESET}",            "browse newest movies & series"),
-            (f"{C.BOLD}By Genre{C.RESET}",          "Action, Comedy, Horror, Anime..."),
-            (f"{C.BOLD}By Year{C.RESET}",           "2026, 2025, 2024..."),
-            (f"{C.BOLD}By Country{C.RESET}",        "Japan, South Korea, USA..."),
-            (f"{C.BOLD}By Actor/Director{C.RESET}", "search by person"),
-            (f"{C.BOLD}Recommendations{C.RESET}",   "similar to a title you like"),
-            (f"{C.BOLD}Live TV{C.RESET}",           "1000+ channels by category"),
-            (f"{C.BOLD}Help{C.RESET}",              "usage guide"),
-            (f"{C.BOLD}Exit{C.RESET}",              ""),
+            ("Search",            "find by name"),
+            ("Latest",            "browse newest movies & series"),
+            ("By Genre",          "Action, Comedy, Horror, Anime..."),
+            ("By Year",           "2026, 2025, 2024..."),
+            ("By Country",        "Japan, South Korea, USA..."),
+            ("By Actor/Director", "search by person"),
+            ("Recommendations",   "similar to a title you like"),
+            ("Live TV",           "1000+ channels by category"),
+            ("Help",              "usage guide"),
+            ("Exit",              ""),
         ]
-        idx, _ = choose("Select", menu, allow_back=False)
+        idx = select_menu("Select", menu, back=False)
         if idx is None or idx == 9:
-            print(f"\n  {C.DIM}Bye!{C.RESET}\n")
+            console.print("\n  [dim]Bye![/dim]\n")
             break
 
         if idx == 0:
@@ -1330,5 +1429,5 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print(f"\n\n  {C.DIM}Interrupted. Bye!{C.RESET}\n")
+        console.print("\n\n  [dim]Interrupted. Bye![/dim]\n")
         sys.exit(0)
