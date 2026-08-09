@@ -62,6 +62,46 @@ Datos clave (de sesión real con `.env`):
 ### 4. Emular el cliente SVS de libranger offline
 - El más difícil: reconstruir la lógica del cliente star/P2SP dentro de libranger. Último recurso.
 
+## PROGRESO — SVS capturado y replicable (transporte crackeado)
+
+Hook clave que funciona: en **spawn fresco** (antes de que el P2SP inunde), hookear el
+`memcpy` DENTRO de `mbedtls_ssl_write` en **`libranger!0x71b4c0`** (`x1`=src=plaintext,
+`x2`=len) captura el plaintext TLS. Filtrando por primeros bytes `GET/POST/HTTP` se capturó
+el **request completo del SVS**:
+
+```
+GET /slb/v9/live?auth=<blob ~658 chars base64-custom> HTTP/1.1
+Host: nvuos.7r03dh6rph.com          (= el main_addr iCDN de get_slb)
+App: com.android.msandroid
+App-Version: 49902
+Content-Type: application/octet-stream
+Ranger-Id: <35 chars>
+User-Agent: Ranger/4.9.4-17294ac0
+```
+
+(Antes el app resuelve los hosts por DoH: `POST https://dns.google/dns-query`.)
+
+- **REPLAY desde Python FUNCIONA**: mismo GET a `https://nvuos.7r03dh6rph.com/slb/v9/live?auth=<blob>`
+  con esos headers → **200**, body = otro blob base64-custom (684 chars).
+- base64-custom alphabet: `B8oOvNYtn9RPijWXbcJqGyD5Eklmh21V_efAgLC3wxF4STpQr6usdHM-Kz0IaUZ7`
+  (traducir custom→estándar, luego `base64decode`).
+- Decodificados: **request → 480 bytes**, **response → 512 bytes**, ambos **múltiplos de 16 y
+  alta entropía (~7.5/8) → AES cifrado** (no plaintext). El response descifrado (en el app) da
+  el endpoint iCDN + token lowercase + trans_id (lo que va al Content-Auth).
+- iCDN **`149.34.241.153:8119` es estático** (mismo IP en todas las sesiones).
+
+### Lo que falta (crypto del blob) — via `so_emulator`
+1. Emular/ubicar la función libranger que **construye+cifra el `auth=`** desde los datos de
+   get_slb (session_id, token upper, group, user_id, dev_id, Ranger-Id).
+2. Emular/ubicar la función que **descifra el response** (512 bytes AES → iCDN host + token
+   lowercase + trans_id). Falta la **clave AES** (estática en libranger o de sesión).
+3. Con (1)+(2): request al SVS desde Python → decode → prefijo Content-Auth → proxy + `sign_o3`
+   = live 100% independiente.
+
+Sugerencia para ubicar la clave AES: hookear las funciones AES de libranger (mbedtls_aes o
+custom) durante el SVS en spawn fresco, o buscar en memoria el plaintext del `auth=` (contiene
+`session_id`/`link=icdn`) justo antes del cifrado.
+
 ## Herramientas ya disponibles
 
 - [`so_emulator.py`](so_emulator.py) — emula funciones nativas ARM64 (mapea ELF + relocaciones);
