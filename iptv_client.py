@@ -19,6 +19,7 @@ Protocolo:
 Requiere:  pip install pycryptodome requests
 """
 import base64
+import hashlib
 import json
 import os
 import sys
@@ -168,13 +169,26 @@ class IPTVClient:
         """Fija una sesión de CUENTA ya logueada (obtenida con login manual + captura del token)."""
         self.user_id = user_id; self.user_token = user_token; return self
 
-    def login(self, username, enc_password, account_type="2", type_="1", area_code=""):
-        """Login por cuenta email.  Parámetros REALES observados: accountType='2', type='1'.
-        OJO: `enc_password` NO es la clave en claro — el app la cifra a base64(DES/3DES(pwd+salt))
-        con AbstractC1235i (claves DES '==RiXVKU' / 'dCsPLwiy'). El input lleva un prefijo/salt
-        (cipher de 40 bytes), por lo que aquí se espera el password YA cifrado como lo manda el app.
-        Método fiable en la práctica: loguear en el app y capturar el userToken (ver README)."""
-        bean = {"accountType": account_type, "userName": username, "password": enc_password, "type": type_,
+    def login(self, username, password, account_type="2", type_="1", area_code=""):
+        """Login por cuenta email.  accountType='2', type='1' (login por email).
+
+        El campo `password` que viaja es MD5(password) en HEX minúsculas (32 chars),
+        dentro del body 3DES normal.  Confirmado con Frida (oráculo sobre fc.b.b,
+        el DESede/ECB/PKCS5 del body): el app envía p.ej.
+          {"accountType":"2","userName":"...","password":"049ec44fd8dd354dee...", ...}
+        y ese valor es MD5 hex (k2.i.a = MessageDigest MD5 -> hex).  El getter
+        cc.m0.m6123x() devuelve ese hash ya guardado (user_password_new, sin cifrar
+        extra), y LoginBean -> json -> fc.b.b() = mismo encrypt_body de siempre.
+        Las llaves DES de AbstractC1235i ('==RiXVKU'/'dCsPLwiy') NO son de la red.
+        matadata/signdata van vacíos (solo STB con /system/etc/.UCERT los llevan).
+
+        `password` se recibe en claro y se hashea aquí (MD5-hex).
+        OJO encoding: el app hace `(byte) charArray[i]` (byte bajo de cada char UTF-16
+        == latin-1), NO utf-8.  Para ASCII da igual; para 'ñ','é',... cambia.  Se
+        replica exacto con (ord(c) & 0xFF) por carácter."""
+        pwd_bytes = bytes((ord(c) & 0xFF) for c in (password or ""))
+        password = hashlib.md5(pwd_bytes).hexdigest()
+        bean = {"accountType": account_type, "userName": username, "password": password, "type": type_,
                 "macAddr": "02:00:00:00:00:00", "areaCode": area_code, "verificationCode": "",
                 "verificationToken": "", "matadata": "", "signdata": "", "channel": "default"}
         r = self.call("v8/login", bean, base_fields=False)

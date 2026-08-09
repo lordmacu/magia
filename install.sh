@@ -176,7 +176,7 @@ fi
 # ═══════════════════════════════════════
 step "Instalando dependencias"
 
-for dep in pycryptodome requests rich InquirerPy; do
+for dep in pycryptodome requests rich InquirerPy unicorn; do
     case "$dep" in
         pycryptodome) import_name="Crypto" ;;
         *)            import_name="$dep" ;;
@@ -328,7 +328,7 @@ step "Verificación"
 
 cd "$INSTALL_DIR"
 $PYTHON -c "
-import rich, InquirerPy, requests, Crypto
+import rich, InquirerPy, requests, Crypto, unicorn
 from iptv_client import IPTVClient
 print('  Modules OK')
 " 2>/dev/null && ok "Todos los módulos cargan correctamente" || warn "Verificación de módulos falló (puede funcionar igual)"

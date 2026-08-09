@@ -16,3 +16,6 @@ build/
 dist/
 *.spec.bak
 __pycache__/
+
+# Binario propietario extraído del APK (NO redistribuir; el CLI lo carga localmente)
+libranger-jni.so

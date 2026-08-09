@@ -36,6 +36,7 @@ from InquirerPy.separator import Separator
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from iptv_client import IPTVClient
 import telegram_notifier as tg
+from live_stream import LiveSession, LiveProxy
 
 console = Console()
 
@@ -135,9 +136,9 @@ STRINGS = {
         "subs_available": "Available subtitles",
         "no_subs": "No subtitles available",
         "email_user": "Email / username",
-        "enc_password": "Encrypted password (from app capture)",
+        "enc_password": "Password",
         "using_creds": "Using credentials from .env ({u})",
-        "pwd_tip": "The app encrypts passwords with DES before sending.",
+        "pwd_tip": "Enter your account password in plain text (it is MD5-hashed automatically).",
         "fallback_free": "Falling back to free tier...",
         "login_failed": "Login failed: {msg}",
         "logged_in": "Logged in",
@@ -232,9 +233,9 @@ STRINGS = {
         "subs_available": "Subtitulos disponibles",
         "no_subs": "Sin subtitulos disponibles",
         "email_user": "Email / usuario",
-        "enc_password": "Contrasena encriptada (capturada de la app)",
+        "enc_password": "Contrasena",
         "using_creds": "Usando credenciales del .env ({u})",
-        "pwd_tip": "La app encripta contrasenas con DES antes de enviar.",
+        "pwd_tip": "Escribe tu contrasena en texto plano (se hashea con MD5 automaticamente).",
         "fallback_free": "Cambiando a modo gratuito...",
         "login_failed": "Login fallido: {msg}",
         "logged_in": "Sesion iniciada",
@@ -864,7 +865,8 @@ def handle_live(client, channel_item=None):
         (76189, "24/7 Marathons"),
     ]
 
-    cat_choices = [(name, "") for _, name in FEATURED_CATS]
+    cat_choices = [("Stream current", "mirror what's playing on the device")]
+    cat_choices += [(name, "") for _, name in FEATURED_CATS]
     country_cats = [(c.get("columnId"), c.get("name", "?")) for c in cats
                     if c.get("name") in ("Colombia", "Mexico", "Venezuela", "Chile",
                                          "Peru", "Ecuador", "Estados Unidos", "España")]
@@ -876,14 +878,19 @@ def handle_live(client, channel_item=None):
     if idx is None:
         return
 
-    if idx < len(FEATURED_CATS):
-        col_id = FEATURED_CATS[idx][0]
-        cat_name = FEATURED_CATS[idx][1]
+    if idx == 0:
+        stream_live(client, "", "Current channel")
+        return
+
+    feat_idx = idx - 1
+    if feat_idx < len(FEATURED_CATS):
+        col_id = FEATURED_CATS[feat_idx][0]
+        cat_name = FEATURED_CATS[feat_idx][1]
     elif idx == len(cat_choices) - 1:
         _live_search(client)
         return
     else:
-        country_idx = idx - len(FEATURED_CATS)
+        country_idx = feat_idx - len(FEATURED_CATS)
         if 0 <= country_idx < len(country_cats):
             col_id = country_cats[country_idx][0]
             cat_name = country_cats[country_idx][1]
@@ -987,107 +994,84 @@ def _handle_live_channel(client, channel_code, channel_name):
         show_live_url(client, channel_code, channel_name)
 
 
-def _find_ranger_proxy(play_code):
-    try:
-        r = subprocess.run(["adb", "devices"], capture_output=True, text=True, timeout=5)
-        lines = [l for l in r.stdout.strip().split("\n")[1:] if "\tdevice" in l]
-        if not lines:
-            return None, None
-        device = lines[0].split("\t")[0]
+# ─── Live TV: streaming independiente (sin app ni emulador) vía sign_o3 ───
+_ACTIVE_LIVE_PROXIES = []  # mantiene vivos los proxies mientras dure la sesión del CLI
 
-        r = subprocess.run(["adb", "-s", device, "shell", "pidof com.xuper.netxxus"],
-                           capture_output=True, text=True, timeout=5)
-        if not r.stdout.strip():
-            return None, None
 
-        r = subprocess.run(["adb", "-s", device, "shell", "cat /proc/net/tcp"],
-                           capture_output=True, text=True, timeout=5)
-        ports = []
-        for line in r.stdout.strip().split("\n")[1:]:
-            parts = line.split()
-            if len(parts) < 4:
-                continue
-            if parts[3] == "0A":
-                port = int(parts[1].split(":")[1], 16)
-                if 30000 < port < 60000:
-                    ports.append(port)
-
-        for port in sorted(ports):
-            subprocess.run(["adb", "-s", device, "forward", f"tcp:{port}", f"tcp:{port}"],
-                           capture_output=True, timeout=5)
-            try:
-                resp = requests.get(f"http://127.0.0.1:{port}/live/0/{play_code}.ts",
-                                    timeout=3, stream=True)
-                chunk = resp.raw.read(100)
-                resp.close()
-                if resp.status_code == 200 and len(chunk) > 0:
-                    return port, play_code
-            except Exception:
-                pass
-            try:
-                resp = requests.get(f"http://127.0.0.1:{port}/live/0/{play_code}.m3u8",
-                                    timeout=3)
-                if resp.status_code == 200 and "Ranger" in resp.headers.get("Server", ""):
-                    return port, play_code
-            except Exception:
-                pass
-        return None, None
-    except Exception:
-        return None, None
+def get_live_cdn_auth(client, channel_code):
+    """Devuelve (host, auth_prefix) para TV en vivo desde get_slb(live).
+    auth_prefix = el Content-Auth SIN &start_moment/&sign2 (los agrega live_stream por request)."""
+    slb = client.get_slb(type_="merge", live_codes=[channel_code or "masnew_live"])
+    if isinstance(slb, dict) and "_error" not in slb:
+        for cdn in slb.get("cdn_list", []):
+            for u in cdn.get("url_list", []):
+                url = u.get("url", "")
+                if "sign2_method=sign_o3" in url and "&token=" in url:
+                    mh = re.search(r"[?&]host=([^&]+)", url)
+                    host = mh.group(1) if mh else cdn.get("main_addr", "").split("//")[-1].rstrip("/")
+                    return host, url
+    return None, None
 
 
 def stream_live(client, channel_code, channel_name):
+    """Reproduce TV en vivo en VLC/mpv de forma INDEPENDIENTE (sin app ni emulador):
+    arma el Content-Auth con sign_o3 y levanta un proxy local que re-firma cada segmento."""
     player = _ensure_player()
     if not player:
         return
 
-    info(f"Getting stream for: {channel_name}...")
+    info(f"Preparando: {channel_name}...")
     time.sleep(API_DELAY)
 
+    # 1) Content-License + media_code (playCode) del canal
     live = client.play_live(channel_code)
-    addrs = live.get("liveAddressList", [])
+    addrs = live.get("liveAddressList", []) if isinstance(live, dict) else []
     if not addrs:
-        error("Could not get stream info")
+        error("No se pudo obtener el stream (play_live).")
+        return
+    addr = addrs[0]
+    content_license = addr.get("license", "")
+    media_code = addr.get("playCode", "") or channel_code
+
+    # 2) host + prefijo del Content-Auth (token de sesión) desde el SLB
+    host, auth_prefix = get_live_cdn_auth(client, channel_code)
+    if not auth_prefix or not content_license:
+        # NOTA: get_slb(live) entrega CDN tipo CF (sign_type=cfl) e iCDN (sign_type=cs),
+        # pero NO el prefijo con sign2_method=sign_o3. Ese prefijo (endpoint iCDN real
+        # 149.34.241.153:8119 + token lowercase) lo produce el redirect SLB/svs
+        # (xsvs...:18084, P2SP) que todavía falta replicar. sign_o3 + el proxy ya funcionan
+        # en cuanto se tenga ese prefijo (ver SIGN_O3_CRACK.md / memoria).
+        error("Falta el paso de sesión iCDN (redirect svs) para armar el Content-Auth.")
+        warn("sign_o3 y el proxy ya están listos; pendiente: replicar el redirect svs.")
         return
 
-    addr = addrs[0]
-    play_code = addr.get("playCode", channel_code)
+    # 3) Sesión + proxy local que re-firma cada request con sign_o3 (Python puro)
+    try:
+        session = LiveSession(host, auth_prefix, content_license)
+    except ValueError as e:
+        error(f"Content-Auth inválido: {e}")
+        return
+    proxy = LiveProxy(session)
+    port = proxy.start()
+    _ACTIVE_LIVE_PROXIES.append(proxy)
+    url = proxy.url_for(media_code)
 
-    info("Searching for Ranger proxy (adb)...")
-    proxy_port, media_code = _find_ranger_proxy(play_code)
+    success(f"Streaming: {channel_name}")
+    info(f"Proxy local re-firmando en 127.0.0.1:{port}")
 
-    if proxy_port:
-        url = f"http://127.0.0.1:{proxy_port}/live/0/{media_code}.ts"
-        success(f"Ranger proxy found on port {proxy_port}")
-        plat = sys.platform
-        if player == "mpv":
-            cmd = ["mpv", url]
-        elif player == "iina" and plat == "darwin":
-            cmd = ["open", "-a", "IINA", url]
-        elif player == "vlc" and plat == "darwin":
-            cmd = ["open", "-a", "VLC", url]
-        elif player == "vlc":
-            cmd = ["vlc", url]
-        else:
-            cmd = [player, url]
-        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        info(t("opening_player", player=player.upper()))
+    plat = sys.platform
+    if player == "mpv":
+        cmd = ["mpv", url, "--cache=yes"]
+    elif player == "iina" and plat == "darwin":
+        cmd = ["open", "-a", "IINA", url]
+    elif player == "vlc" and plat == "darwin":
+        cmd = ["open", "-a", "VLC", url]
+    elif player == "vlc":
+        cmd = ["vlc", url]
     else:
-        warn("Ranger proxy not found.")
-        console.print(Panel(
-            "Live TV requires the Magis TV app running on a device/emulator\n"
-            "connected via adb, playing the SAME channel you want to stream.\n\n"
-            "The native Ranger library handles the P2P stream assembly and\n"
-            "uses internal media codes that differ from the API's playCode.\n\n"
-            "To stream:\n"
-            "  1. Open Magis TV on your device/emulator\n"
-            "  2. Play this channel in the app\n"
-            "  3. Connect via adb (adb devices)\n"
-            "  4. Run this option again",
-            border_style="yellow",
-            title="Live Streaming",
-            padding=(0, 1),
-        ))
+        cmd = [player, url]
+    subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    info(t("opening_player", player=player.upper()))
 
 
 def show_live_url(client, channel_code, channel_name):
@@ -1543,7 +1527,7 @@ def show_help():
 
     console.print(Panel(
         "[bold]Free tier:[/bold]  auto-activates, most content available\n"
-        "[bold]Login:[/bold]     email + encrypted password (for premium)\n\n"
+        "[bold]Login:[/bold]     email + password (for account features)\n\n"
         "Press [bold]Ctrl+C[/bold] to exit at any time\n"
         "Downloaded episodes are auto-skipped on re-run\n"
         "CDN auth refreshes every 30 episodes automatically",
