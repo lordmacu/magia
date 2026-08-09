@@ -98,9 +98,22 @@ User-Agent: Ranger/4.9.4-17294ac0
 3. Con (1)+(2): request al SVS desde Python → decode → prefijo Content-Auth → proxy + `sign_o3`
    = live 100% independiente.
 
-Sugerencia para ubicar la clave AES: hookear las funciones AES de libranger (mbedtls_aes o
-custom) durante el SVS en spawn fresco, o buscar en memoria el plaintext del `auth=` (contiene
-`session_id`/`link=icdn`) justo antes del cifrado.
+Sugerencia para ubicar la clave AES: hookear las funciones AES de libranger durante el SVS.
+
+### Hallazgos que acotan el camino (importantes)
+- **El AES usa instrucciones ARM crypto** (AESE/AESD/AESMC): NO hay S-box/T-tables en el binario
+  para buscar. Hay que ubicar las funciones por las instrucciones crypto o por hook.
+- **El plaintext del `auth=` NO es la URL de get_slb como string**: se buscó en memoria durante
+  el SVS (`link=icdn`, `main_addr=nvuos`, `session_id=`, `&group=`, `sign_type=cs`) y TODO MISS.
+  Es un **struct binario**, no texto → reversear el formato a mano no es viable.
+- Conclusión: el camino correcto es **emular con `so_emulator`** las dos funciones de libranger
+  (construir+cifrar el `auth=` ; descifrar el response), tratando el crypto como caja negra —
+  igual que hicimos con la compresión de `sign_o3`. Falta ubicar esas dos funciones (hook
+  alrededor de `0x71b4c0` para la de request; hook del lado ssl_read / cuando aparece
+  `149.34.241.153` en memoria DESPUÉS del response, para la de decode).
+- El `memcpy@0x71b4c0` en spawn fresco es el punto de captura confiable del plaintext TLS
+  saliente (así se sacó el GET /slb). Para el response, hay que capturar DESPUÉS de que llegue
+  (no al momento del request).
 
 ## Herramientas ya disponibles
 
