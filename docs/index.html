@@ -62,6 +62,16 @@
   .btn.ghost{background:transparent;border-color:var(--line);color:var(--ink)}
   .btn.ghost:hover{border-color:var(--cyan);color:var(--cyan);text-decoration:none}
 
+  /* ---- hero one-line install ---- */
+  .hero-install{max-width:660px;margin:24px auto 0}
+  .cmdbox{display:flex;align-items:center;gap:10px;background:#0a0f17;border:1px solid var(--line);border-radius:12px;padding:11px 12px 11px 14px;text-align:left;overflow-x:auto}
+  .cmdbox .cmd-prompt{color:var(--cyan);font-family:var(--mono);font-weight:700;flex:none}
+  .cmdbox code{font-family:var(--mono);font-size:.8rem;color:var(--ink);white-space:nowrap;flex:1 1 auto}
+  .cmdbox .copybtn{flex:none;font-family:var(--mono);font-size:.74rem;font-weight:600;color:var(--cyan);background:transparent;border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;transition:.15s}
+  .cmdbox .copybtn:hover{border-color:var(--cyan);background:rgba(56,225,214,.08)}
+  .hero-install-sub{margin-top:9px;font-family:var(--mono);font-size:.77rem;color:var(--faint)}
+  .hero-install-sub a{color:var(--dim)}
+
   /* ---- live banner ---- */
   .live{
     margin:34px auto 0;max-width:820px;border:1px solid rgba(92,225,122,.4);
@@ -160,6 +170,15 @@
   <div class="cta">
     <a class="btn primary" href="#install">Get started</a>
     <a class="btn ghost" href="https://github.com/lordmacu/magia">View source ↗</a>
+  </div>
+
+  <div class="hero-install">
+    <div class="cmdbox">
+      <span class="cmd-prompt">$</span>
+      <code>curl -sL https://raw.githubusercontent.com/lordmacu/magia/main/install.sh | bash</code>
+      <button class="copybtn" onclick="var b=this;navigator.clipboard.writeText('curl -sL https://raw.githubusercontent.com/lordmacu/magia/main/install.sh | bash').then(function(){b.textContent='Copied!';setTimeout(function(){b.textContent='Copy'},1500)})">Copy</button>
+    </div>
+    <div class="hero-install-sub">macOS / Linux &#183; <a href="#install">Windows &amp; manual install &#8595;</a></div>
   </div>
 
   <div class="live">

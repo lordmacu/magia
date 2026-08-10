@@ -16,6 +16,24 @@
   <img alt="Educational" src="https://img.shields.io/badge/purpose-educational%20%2F%20research-8b7bf7">
 </p>
 
+## ⚡ Install in one line
+
+**macOS / Linux:**
+
+```bash
+curl -sL https://raw.githubusercontent.com/lordmacu/magia/main/install.sh | bash
+```
+
+**Windows (PowerShell):**
+
+```powershell
+powershell -c "irm https://raw.githubusercontent.com/lordmacu/magia/main/install.ps1 | iex"
+```
+
+<sub>Prefer to do it by hand? See <a href="#quick-install">manual install</a>.</sub>
+
+---
+
 ## Disclaimer
 
 **This project does not own, operate, host, or distribute any content or servers.** All content accessed through this tool belongs to and is served by the third-party IPTV platform **Magis TV / Xuper** (`com.xuper.netxxus`). This project is purely the result of reverse engineering the Magis TV Android APK for personal educational and research purposes. No media files, streams, or server infrastructure are provided, hosted, or redistributed by this project or its author. Use at your own risk and responsibility.
