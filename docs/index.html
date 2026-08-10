@@ -64,11 +64,12 @@
 
   /* ---- hero one-line install ---- */
   .hero-install{max-width:660px;margin:24px auto 0}
-  .cmdbox{display:flex;align-items:center;gap:10px;background:#0a0f17;border:1px solid var(--line);border-radius:12px;padding:11px 12px 11px 14px;text-align:left;overflow-x:auto}
-  .cmdbox .cmd-prompt{color:var(--cyan);font-family:var(--mono);font-weight:700;flex:none}
-  .cmdbox code{font-family:var(--mono);font-size:.8rem;color:var(--ink);white-space:nowrap;flex:1 1 auto}
-  .cmdbox .copybtn{flex:none;font-family:var(--mono);font-size:.74rem;font-weight:600;color:var(--cyan);background:transparent;border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;transition:.15s}
-  .cmdbox .copybtn:hover{border-color:var(--cyan);background:rgba(56,225,214,.08)}
+  .cmdbox{position:relative;background:#0a0f17;border:1px solid var(--line);border-radius:12px;padding:14px 16px;text-align:left}
+  .cmdbox code{display:block;font-family:var(--mono);font-size:.8rem;line-height:1.7;color:var(--ink);white-space:normal;overflow-wrap:anywhere;padding-right:74px}
+  .cmdbox .cmd-prompt{color:var(--cyan);font-weight:700;margin-right:7px;user-select:none;-webkit-user-select:none}
+  .cmdbox .copybtn{position:absolute;top:9px;right:9px;font-family:var(--mono);font-size:.73rem;font-weight:600;color:var(--cyan);background:#0d131c;border:1px solid var(--line);border-radius:8px;padding:6px 13px;cursor:pointer;transition:.15s;z-index:1}
+  .cmdbox .copybtn:hover{border-color:var(--cyan);background:rgba(56,225,214,.12)}
+  .cmdbox .copybtn:active{transform:translateY(1px)}
   .hero-install .cmdrow{margin-bottom:10px}
   .hero-install .oslabel{display:block;font-family:var(--mono);font-size:.71rem;color:var(--faint);margin:0 0 4px 3px;text-align:left;letter-spacing:.5px}
   .hero-install-sub{margin-top:4px;font-family:var(--mono);font-size:.77rem;color:var(--faint)}
@@ -178,17 +179,15 @@
     <div class="cmdrow">
       <span class="oslabel">macOS / Linux</span>
       <div class="cmdbox">
-        <span class="cmd-prompt">$</span>
-        <code>curl -sL https://raw.githubusercontent.com/lordmacu/magia/main/install.sh | bash</code>
         <button class="copybtn" onclick="var b=this;navigator.clipboard.writeText('curl -sL https://raw.githubusercontent.com/lordmacu/magia/main/install.sh | bash').then(function(){b.textContent='Copied!';setTimeout(function(){b.textContent='Copy'},1500)})">Copy</button>
+        <code><span class="cmd-prompt">$</span>curl -sL https://raw.githubusercontent.com/lordmacu/magia/main/install.sh | bash</code>
       </div>
     </div>
     <div class="cmdrow">
       <span class="oslabel">Windows (PowerShell)</span>
       <div class="cmdbox">
-        <span class="cmd-prompt">&gt;</span>
-        <code>irm https://raw.githubusercontent.com/lordmacu/magia/main/install.ps1 | iex</code>
         <button class="copybtn" onclick="var b=this;navigator.clipboard.writeText('irm https://raw.githubusercontent.com/lordmacu/magia/main/install.ps1 | iex').then(function(){b.textContent='Copied!';setTimeout(function(){b.textContent='Copy'},1500)})">Copy</button>
+        <code><span class="cmd-prompt">&gt;</span>irm https://raw.githubusercontent.com/lordmacu/magia/main/install.ps1 | iex</code>
       </div>
     </div>
     <div class="hero-install-sub"><a href="#install">Prefer manual install? &#8595;</a></div>
