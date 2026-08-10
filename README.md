@@ -12,6 +12,7 @@
   <img alt="Python 3.8+" src="https://img.shields.io/badge/python-3.8%2B-3776AB?logo=python&logoColor=white">
   <img alt="Pure Python" src="https://img.shields.io/badge/runtime-pure%20python-38e1d6">
   <img alt="Live TV" src="https://img.shields.io/badge/Live%20TV-streaming-5ce17a">
+  <img alt="No trackers" src="https://img.shields.io/badge/no%20trackers-no%20ads%20%C2%B7%20no%20telemetry-brightgreen">
   <img alt="Educational" src="https://img.shields.io/badge/purpose-educational%20%2F%20research-8b7bf7">
 </p>
 
@@ -44,6 +45,21 @@ No Android device, emulator, adb or Frida is needed at runtime. Everything runs 
 
 > ### 📡 New: Live TV actually plays now
 > Live was the hardest part of the app to reverse — it used to only print stream credentials. Magia now **plays live channels end-to-end in pure Python**: it resolves the Cloudflare `cfl` CDN, signs every segment with the cracked `sign_o3` routine (emulated with Unicorn), and runs a local HLS proxy so any player just opens `http://127.0.0.1:PORT/live.m3u8`. See **[Live TV Architecture](#live-tv-architecture-)** for the full technical breakdown.
+
+---
+
+## 🧼 Clean & auditable — none of the app's baggage
+
+Magia is **open-source pure Python you can read end-to-end** — no compiled blob running in the background, no obfuscation, no surprises. It deliberately carries **none of the original APK's baggage**:
+
+- ❌ **No telemetry / analytics.** The APK shipped Firebase + analytics interceptors that phoned home on every tap; Magia talks only to the Magis TV API needed to search and play.
+- ❌ **No trackers, no ads, no push/notification services.**
+- ❌ **No anti-debug / anti-Frida / root-detection** native tricks.
+- ❌ **No extra permissions, no background services, no persistence** — it's a script you run and close.
+- ✅ **Your data stays local.** Secrets live in a git-ignored `.env`; nothing is uploaded anywhere except the provider's own API/CDN, over your own connection.
+- ✅ **Every network call is in the source.** Read it, diff it, audit it — that is the real guarantee against malware, not a promise.
+
+> For live TV, Magia emulates a single native signing routine from the app's `libranger` library **in a sandbox (Unicorn)** — it never installs or executes the original app.
 
 ---
 

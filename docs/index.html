@@ -127,6 +127,7 @@
   <nav class="nav">
     <div class="brand"><img src="assets/magia-mark.svg" alt="" width="26" height="26" style="display:block;border-radius:7px"> MAGIA</div>
     <div class="links" style="display:flex;gap:18px;font-size:.85rem">
+      <a href="#clean">Clean</a>
       <a href="#features">Features</a>
       <a href="#live" style="color:var(--green)">Live TV</a>
       <a href="#how">How it works</a>
@@ -166,6 +167,24 @@
     <div><b>Live TV now streams.</b> <span>1,000+ channels play straight in VLC/mpv — the live path was cracked (CDN&nbsp;<code style="color:var(--amber)">cfl</code>&nbsp;+&nbsp;<code style="color:var(--amber)">sign_o3</code>), no longer just credentials.</span></div>
   </div>
 </header>
+
+<section class="wrap" style="padding:14px 22px 0" id="clean">
+  <div style="border:1px solid rgba(139,123,247,.42);background:linear-gradient(135deg,rgba(139,123,247,.10),rgba(56,225,214,.05));border-radius:var(--radius);padding:20px 22px">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+      <span style="font-size:1.2rem">🧼</span>
+      <b style="font-size:1.06rem">Clean &amp; auditable — none of the app's baggage</b>
+    </div>
+    <p style="color:var(--dim);margin:0 0 13px;font-size:.94rem"><b style="color:var(--ink)">Open-source pure Python you can read end-to-end.</b> The original APK shipped Firebase + analytics, push/tracking and root-detection native tricks — Magia has none of it. The real guarantee against malware isn't a promise: every line and every network call is right there in the source.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      <span class="pill">🚫 <b>No telemetry / analytics</b></span>
+      <span class="pill">🛡️ No trackers · no ads</span>
+      <span class="pill">🐞 No anti-debug / anti-Frida</span>
+      <span class="pill">🔒 Secrets stay in local <b>.env</b></span>
+      <span class="pill">📖 Every request is in the source</span>
+    </div>
+    <p style="color:var(--faint);margin:12px 0 0;font-size:.82rem">For live TV it emulates one native signing routine from the app's <span class="mono">libranger</span> lib in a sandbox (Unicorn) — it never installs or runs the original app.</p>
+  </div>
+</section>
 
 <main class="wrap">
 
