@@ -420,11 +420,45 @@ def confirm(prompt, default=True):
         return None
 
 
+# Color por opcion en los menus. InquirerPy 0.3.4 no lo soporta nativo (cada opcion se
+# dibuja con una sola clase de estilo), asi que parcheamos el list-control para pintar el
+# nombre segun _MENU_STYLE (mapa nombre_mostrado -> estilo prompt_toolkit, ej "fg:ansigreen").
+_MENU_STYLE = {}
+
+def _install_menu_color_patch():
+    try:
+        from InquirerPy.prompts.list import InquirerPyListControl
+    except Exception:
+        return
+    if getattr(InquirerPyListControl, "_magia_color_patched", False):
+        return
+    _orig_normal = InquirerPyListControl._get_normal_text
+    def _normal(self, choice):
+        frags = _orig_normal(self, choice)
+        style = _MENU_STYLE.get(choice.get("name"))
+        if not style:
+            return frags
+        # recolorea solo el fragmento del nombre (clase vacia), deja marker/espacios intactos
+        return [(style, txt) if (cls == "" and txt == choice.get("name")) else (cls, txt)
+                for (cls, txt) in frags]
+    InquirerPyListControl._get_normal_text = _normal
+    InquirerPyListControl._magia_color_patched = True
+
+_install_menu_color_patch()
+
+
 def select_menu(prompt, choices, back=True):
+    """choices: lista de (label, hint) o (label, hint, style).  `style` es un estilo
+    prompt_toolkit (ej 'fg:ansigreen') que colorea esa opcion cuando NO esta resaltada."""
     items = []
-    for label, hint in choices:
+    _MENU_STYLE.clear()
+    for choice in choices:
+        label, hint = choice[0], choice[1]
+        style = choice[2] if len(choice) > 2 else None
         name = f"{label}  — {hint}" if hint else label
         items.append({"name": name, "value": label})
+        if style:
+            _MENU_STYLE[name] = style
     if back:
         items.append(Separator())
         items.append({"name": "<- Back", "value": "__back__"})
@@ -436,8 +470,8 @@ def select_menu(prompt, choices, back=True):
         ).execute()
         if result == "__back__":
             return None
-        for i, (label, _) in enumerate(choices):
-            if label == result:
+        for i, choice in enumerate(choices):
+            if choice[0] == result:
                 return i
         return None
     except (KeyboardInterrupt, EOFError):
@@ -1062,8 +1096,8 @@ def _browse_channels(client, channels, title):
 
 def _handle_live_channel(client, channel_code, channel_name):
     choices = [
-        ("Stream", "open in VLC/mpv"),
-        ("View details", "playCode, license, CDN"),
+        ("▶️  Stream", "open in VLC/mpv", "fg:ansigreen"),   # reproductor -> verde
+        ("ℹ️  View details", "playCode, license, CDN"),
     ]
     idx = select_menu(f"{channel_name}", choices)
     if idx is None:
@@ -1248,13 +1282,13 @@ def handle_series(client, item, cdn_base, cf_auth, out_dir):
     series_dir = out_dir / safe_name
 
     choices = [
-        (t("dl_all"), f"{len(episodes)} eps -> {safe_name}/"),
-        (t("dl_range"), "e.g. episodes 1-10"),
-        (t("dl_single"), ""),
-        (t("browse_eps"), ""),
-        (t("stream_play"), t("stream_play_hint")),
-        (t("view_details"), ""),
-        (t("view_link"), t("view_link_hint")),
+        (f"⬇️  {t('dl_all')}", f"{len(episodes)} eps -> {safe_name}/"),
+        (f"🔢 {t('dl_range')}", "e.g. episodes 1-10"),
+        (f"1️⃣  {t('dl_single')}", ""),
+        (f"📑 {t('browse_eps')}", ""),
+        (f"▶️  {t('stream_play')}", t("stream_play_hint"), "fg:ansigreen"),   # reproductor -> verde
+        (f"ℹ️  {t('view_details')}", ""),
+        (f"🔗 {t('view_link')}", t("view_link_hint")),
     ]
     idx = select_menu(t("what_to_do"), choices)
     if idx is None:
@@ -1462,10 +1496,10 @@ def handle_movie(client, item, cdn_base, cf_auth, out_dir):
         console.print(table)
 
     choices = [
-        (t("dl_movie"), t("dl_movie_hint")),
-        (t("stream_play"), t("stream_play_hint")),
-        (t("view_details"), t("view_details_hint")),
-        (t("view_link"), t("view_link_hint")),
+        (f"⬇️  {t('dl_movie')}", t("dl_movie_hint")),
+        (f"▶️  {t('stream_play')}", t("stream_play_hint"), "fg:ansigreen"),   # reproductor -> verde
+        (f"ℹ️  {t('view_details')}", t("view_details_hint")),
+        (f"🔗 {t('view_link')}", t("view_link_hint")),
     ]
     idx = select_menu(t("what_to_do"), choices)
     if idx is None:
@@ -2451,25 +2485,25 @@ def main():
         section(t("main_menu"))
         tg_label = f"{t('telegram')} (ON)" if tg.is_configured() else t("telegram")
         menu = [
-            (t("search"),          t("search_hint")),
-            (t("latest"),          t("latest_hint")),
-            (t("by_genre"),        t("genre_hint")),
-            (t("by_year"),         t("year_hint")),
-            (t("by_country"),      t("country_hint")),
-            (t("by_person"),       t("person_hint")),
-            (t("recommendations"), t("rec_hint")),
-            (t("live_tv"),         t("live_hint")),
-            (tg_label,             t("telegram_hint")),
-            (t("help"),            t("help_hint")),
+            (f"🔍 {t('search')}",          t("search_hint")),
+            (f"🆕 {t('latest')}",          t("latest_hint")),
+            (f"🎭 {t('by_genre')}",        t("genre_hint")),
+            (f"📅 {t('by_year')}",         t("year_hint")),
+            (f"🌎 {t('by_country')}",      t("country_hint")),
+            (f"🎬 {t('by_person')}",       t("person_hint")),
+            (f"⭐ {t('recommendations')}", t("rec_hint")),
+            (f"📺 {t('live_tv')}",         t("live_hint"), "fg:ansigreen"),   # playback -> verde
+            (f"💬 {tg_label}",             t("telegram_hint")),
+            (f"❓ {t('help')}",            t("help_hint")),
         ]
         # "Cerrar sesion" solo si estamos en una sesion de CUENTA (no free tier).
         # Se pone antes de "Salir": Salir mantiene la sesion; Cerrar sesion la olvida.
         logout_idx = None
         if getattr(client, "is_account", False):
             logout_idx = len(menu)
-            menu.append((t("logout"), t("logout_hint")))
+            menu.append((f"🔒 {t('logout')}", t("logout_hint"), "fg:ansired"))
         exit_idx = len(menu)
-        menu.append((t("exit"), ""))
+        menu.append((f"🚪 {t('exit')}", "", "fg:ansired"))
 
         idx = select_menu(t("select"), menu, back=False)
         if idx is None or idx == exit_idx:
