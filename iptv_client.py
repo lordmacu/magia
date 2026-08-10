@@ -182,12 +182,12 @@ class IPTVClient:
         Las llaves DES de AbstractC1235i ('==RiXVKU'/'dCsPLwiy') NO son de la red.
         matadata/signdata van vacíos (solo STB con /system/etc/.UCERT los llevan).
 
-        `password` se recibe en claro y se hashea aquí (MD5-hex).
-        OJO encoding: el app hace `(byte) charArray[i]` (byte bajo de cada char UTF-16
-        == latin-1), NO utf-8.  Para ASCII da igual; para 'ñ','é',... cambia.  Se
-        replica exacto con (ord(c) & 0xFF) por carácter."""
-        pwd_bytes = bytes((ord(c) & 0xFF) for c in (password or ""))
-        password = hashlib.md5(pwd_bytes).hexdigest()
+        `password` se recibe en claro y se hashea aquí.
+        HASH REAL (verificado en vivo 2026-08): MD5(password + "cloudstream") en hex minúsculas.
+        El salt "cloudstream" es fijo (decompilado: `AbstractC5729e.m22190c` hace
+        `MD5((str + "cloudstream").getBytes())`, getBytes()=UTF-8).  El comentario viejo decía
+        "MD5 plano latin-1" y estaba MAL — por eso el login fallaba con credenciales correctas."""
+        password = hashlib.md5(((password or "") + "cloudstream").encode("utf-8")).hexdigest()
         bean = {"accountType": account_type, "userName": username, "password": password, "type": type_,
                 "macAddr": "02:00:00:00:00:00", "areaCode": area_code, "verificationCode": "",
                 "verificationToken": "", "matadata": "", "signdata": "", "channel": "default"}
@@ -195,6 +195,42 @@ class IPTVClient:
         if isinstance(r, dict) and r.get("userToken"):
             self.user_id = r["userId"]; self.user_token = r["userToken"]
         return r
+
+    # ─────────────  REGISTRO / RECUPERAR CONTRASEÑA (email + código)  ─────────────
+    @staticmethod
+    def _hash_pwd(password):
+        """Hash del password que espera el server: MD5(password + 'cloudstream') hex-lower.
+        (salt fijo del app, AbstractC5729e.m22190c; getBytes()=UTF-8). Verificado en vivo."""
+        return hashlib.md5(((password or "") + "cloudstream").encode("utf-8")).hexdigest()
+
+    def send_email_verify_code(self, email, type_="1"):
+        """Envía un código de verificación al `email`.  type: '1'=registro/bind email, '3'=reset password.
+        No requiere estar logueado, pero conviene tener una cuenta de device (activate) para userId/userToken."""
+        bean = {"email": email, "type": type_, "userId": self.user_id, "userToken": self.user_token}
+        return self.call("v2/sendEmailVerifyCode", bean, base_fields=False)
+
+    def validate_verify_code(self, email, code, type_="1"):
+        """Valida el código recibido (v2/validateVerifyCode).  Usa VerifyEmailCodeBean
+        (campos exactos del app: type, email, verifyCode, userToken, userId — NO phone/
+        verificationCode/password; ese era el bug '请求参数异常').  Devuelve VerifyEmailCodeResult.
+        Ruta decompilada: register C4596a -> D0 -> z1.q3 -> r0 = v2/validateVerifyCode."""
+        bean = {"type": type_, "email": email, "verifyCode": code,
+                "userToken": self.user_token, "userId": self.user_id}
+        return self.call("v2/validateVerifyCode", bean, base_fields=False)
+
+    def bind_email(self, email, password, type_="1"):
+        """REGISTRO: asocia `email` + `password` a la cuenta (v2/bindEmail).  password en claro
+        (se hashea con el salt cloudstream).  Llamar validate_verify_code() antes con el código."""
+        bean = {"email": email, "pwd": self._hash_pwd(password), "type": type_,
+                "userId": self.user_id, "userToken": self.user_token}
+        return self.call("v2/bindEmail", bean, base_fields=False)
+
+    def reset_pwd(self, email, new_password, verify_code, type_="3"):
+        """RECUPERAR/RESETEAR contraseña (v4/resetPwd).  `new_password` en claro (se hashea).
+        `verify_code` = el código que llegó al email (enviado con send_email_verify_code(type='3'))."""
+        bean = {"type": type_, "email": email, "password": self._hash_pwd(new_password),
+                "verifyCode": verify_code, "userToken": self.user_token, "userId": self.user_id}
+        return self.call("v4/resetPwd", bean, base_fields=False)
 
     def get_slb(self, type_="merge", live_codes=None, has_pay="0"):
         """SLB / balanceo: devuelve cdn_list con los hosts CDN reales (main_addr) por tag (vod/live/record)."""
@@ -333,12 +369,34 @@ class IPTVClient:
     def epg(self, channel_code, column_id=0, type_="2"):
         return self.call("v3/getProgram", {"channelCode": channel_code, "columnId": column_id, "type": type_})
 
-    # ─────────────  FAVORITOS / USUARIO  ─────────────
+    # ─────────────  FAVORITOS / SEGUIDOS / USUARIO  ─────────────
     def favorites(self, query_type="all", bl_flag="0"):
+        """FAVORITOS del usuario (getFavorite). Devuelve favoriteList[] con metadata rica
+        (contentId, name, type, director, score, updateCount, posterList...). Requiere sesion."""
         return self.call("getFavorite", {"queryType": query_type, "blFlag": bl_flag})
 
     def add_favorite(self, content_ids, type_="1", bl_flag="0"):
         return self.call("v2/addFavorite", {"contentIdList": content_ids, "type": type_, "blFlag": bl_flag})
+
+    def del_favorite(self, content_ids):
+        """Quita favoritos (delFavorite). `content_ids` = lista de contentId."""
+        return self.call("delFavorite", {"list": content_ids})
+
+    def subscribe_list(self, type_=""):
+        """SERIES/PELICULAS QUE EL USUARIO SIGUE (getSubscribe, 追剧).  Es lo mas cercano a
+        'lo que el usuario ha estado viendo': el portal NO expone historial de reproduccion
+        (el progreso se guarda local en el device), pero SI la lista de seguidos.
+        Devuelve subscribeList[] = {subscribeId, contentId, name, type, contentType, score,
+        updateCount, volumnCount, updateTime, posterList[]}.  `type_`='' = todos.  Requiere sesion."""
+        return self.call("getSubscribe", {"type": type_})
+
+    def add_subscribe(self, content_id, type_="1"):
+        """Sigue (追剧) un contenido (addSubscribe)."""
+        return self.call("addSubscribe", {"type": type_, "contentId": content_id})
+
+    def del_subscribe(self, content_ids):
+        """Deja de seguir (delSubscribe). `content_ids` = lista de contentId."""
+        return self.call("delSubscribe", {"list": content_ids})
 
     def order_info(self):
         return self.call("package/getOrderInfo", {})

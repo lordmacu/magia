@@ -19,3 +19,11 @@ __pycache__/
 
 # Binario propietario extraído del APK (NO redistribuir; el CLI lo carga localmente)
 libranger-jni.so
+
+# Sesiones / cachés locales con tokens (NO commitear)
+.svs_session.json
+*.session.json
+
+# Binarios propietarios derivados del APK (NO redistribuir)
+libranger-deobf.so
+*-deobf.so

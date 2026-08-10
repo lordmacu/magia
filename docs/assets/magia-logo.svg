@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 240" width="900" height="240" role="img" aria-label="Magia — Magis TV / Xuper, reverse-engineered in pure Python">
+  <defs>
+    <linearGradient id="emblem" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#38e1d6"/>
+      <stop offset="1" stop-color="#8b7bf7"/>
+    </linearGradient>
+    <linearGradient id="wm" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#eaf3ff"/>
+      <stop offset="1" stop-color="#bfeaff"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.18" cy="0.05" r="0.9">
+      <stop offset="0" stop-color="#38e1d6" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#38e1d6" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow2" cx="0.95" cy="1" r="0.8">
+      <stop offset="0" stop-color="#8b7bf7" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#8b7bf7" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- card -->
+  <rect x="2" y="2" width="896" height="236" rx="30" fill="#0b0f17"/>
+  <rect x="2" y="2" width="896" height="236" rx="30" fill="url(#glow)"/>
+  <rect x="2" y="2" width="896" height="236" rx="30" fill="url(#glow2)"/>
+  <rect x="2.5" y="2.5" width="895" height="235" rx="29.5" fill="none" stroke="#223047" stroke-width="1"/>
+
+  <!-- emblem -->
+  <g transform="translate(52,60)">
+    <rect width="120" height="120" rx="30" fill="url(#emblem)"/>
+    <rect width="120" height="58" rx="30" fill="#ffffff" opacity="0.10"/>
+    <path d="M44 36 L44 84 L82 60 Z" fill="#06121a"/>
+    <g fill="none" stroke="#06121a" stroke-width="6" stroke-linecap="round" opacity="0.9">
+      <path d="M92.7 48 A16 16 0 0 1 92.7 72"/>
+      <path d="M100 40 A27 27 0 0 1 100 80"/>
+    </g>
+  </g>
+
+  <!-- wordmark -->
+  <text x="212" y="122" font-family="ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="88" font-weight="800" letter-spacing="-3" fill="url(#wm)">MAGIA</text>
+
+  <!-- live pill + tagline row -->
+  <g transform="translate(214,150)">
+    <rect x="0" y="0" width="104" height="30" rx="15" fill="#5ce17a" fill-opacity="0.12" stroke="#5ce17a" stroke-opacity="0.55"/>
+    <circle cx="19" cy="15" r="5" fill="#5ce17a"/>
+    <text x="32" y="20" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" font-size="14" font-weight="700" letter-spacing="1" fill="#5ce17a">LIVE TV</text>
+  </g>
+  <text x="332" y="170" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" font-size="16.5" fill="#8ea0b6">Magis&#160;TV&#160;/&#160;Xuper &#183; reverse-engineered &#183; 100% pure Python</text>
+</svg>

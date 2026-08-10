@@ -142,6 +142,36 @@ STRINGS = {
         "fallback_free": "Falling back to free tier...",
         "login_failed": "Login failed: {msg}",
         "logged_in": "Logged in",
+        "save_creds": "Save these credentials for auto-login next time?",
+        "creds_saved": "Credentials saved to .env",
+        "register": "Register",
+        "register_hint": "create account: email + password",
+        "recover_pwd": "Recover password",
+        "recover_hint": "reset password via email code",
+        "sending_code": "Sending verification code to {email}...",
+        "code_sent": "Verification code sent. Check your email (and spam).",
+        "code_send_fail": "Could not send code: {msg}",
+        "verify_code": "Verification code (from your email)",
+        "new_password": "New password",
+        "register_fail": "Registration failed: {msg}",
+        "registered": "Account registered and logged in",
+        "reset_fail": "Password reset failed: {msg}",
+        "pwd_reset_ok": "Password reset and logged in",
+        "email_required": "Please enter an email / username to continue.",
+        "code_required": "Please enter the verification code from your email (it can't be empty).",
+        "pwd_required": "Please enter a password (it can't be empty).",
+        "newpwd_required": "Please enter a new password (it can't be empty).",
+        "check_email_hint": "Now open your inbox (and the spam folder), copy the code, and paste it below.",
+        "validating_code": "Validating the code...",
+        "code_ok": "Code validated.",
+        "creating_account": "Creating your account...",
+        "logging_in": "Signing in...",
+        "resetting": "Resetting your password...",
+        "activating": "Activating device (free account)...",
+        "not_activated": "The device could not be activated (no userId). Check your connection / .env and try again.",
+        "email_in_use": "That email is already registered. Use 'Login' or 'Recover password' instead.",
+        "one_email_note": "Note: each device can register only one email (provider rule). To register another, you need a fresh device SN.",
+        "cancelled": "Cancelled -- nothing was changed.",
         "lang_prompt": "Language / Idioma",
     },
     "es": {
@@ -239,6 +269,36 @@ STRINGS = {
         "fallback_free": "Cambiando a modo gratuito...",
         "login_failed": "Login fallido: {msg}",
         "logged_in": "Sesion iniciada",
+        "save_creds": "Guardar estas credenciales para auto-login la proxima vez?",
+        "creds_saved": "Credenciales guardadas en .env",
+        "register": "Registrarse",
+        "register_hint": "crear cuenta: email + contrasena",
+        "recover_pwd": "Recuperar contrasena",
+        "recover_hint": "resetear contrasena por codigo al email",
+        "sending_code": "Enviando codigo de verificacion a {email}...",
+        "code_sent": "Codigo enviado. Revisa tu email (y spam).",
+        "code_send_fail": "No se pudo enviar el codigo: {msg}",
+        "verify_code": "Codigo de verificacion (del email)",
+        "new_password": "Nueva contrasena",
+        "register_fail": "Registro fallido: {msg}",
+        "registered": "Cuenta registrada y sesion iniciada",
+        "reset_fail": "Reset de contrasena fallido: {msg}",
+        "pwd_reset_ok": "Contrasena reseteada y sesion iniciada",
+        "email_required": "Escribe un email / usuario para continuar.",
+        "code_required": "Escribe el codigo de verificacion que llego a tu email (no puede quedar vacio).",
+        "pwd_required": "Escribe una contrasena (no puede quedar vacia).",
+        "newpwd_required": "Escribe una contrasena nueva (no puede quedar vacia).",
+        "check_email_hint": "Ahora abre tu correo (y la carpeta de spam), copia el codigo y pegalo abajo.",
+        "validating_code": "Validando el codigo...",
+        "code_ok": "Codigo validado.",
+        "creating_account": "Creando tu cuenta...",
+        "logging_in": "Iniciando sesion...",
+        "resetting": "Reseteando tu contrasena...",
+        "activating": "Activando dispositivo (cuenta gratuita)...",
+        "not_activated": "No se pudo activar el dispositivo (sin userId). Revisa tu conexion / .env e intenta de nuevo.",
+        "email_in_use": "Ese email ya esta registrado. Usa 'Iniciar sesion' o 'Recuperar contrasena'.",
+        "one_email_note": "Nota: cada dispositivo solo puede registrar un email (regla del proveedor). Para otro, necesitas un SN nuevo.",
+        "cancelled": "Cancelado -- no se cambio nada.",
         "lang_prompt": "Language / Idioma",
     },
 }
@@ -326,6 +386,21 @@ def ask(prompt, default=""):
         return inquirer.text(message=prompt, default=default).execute()
     except (KeyboardInterrupt, EOFError):
         return None
+
+
+def ask_secret(prompt):
+    """Prompt de password OCULTO (no muestra lo que se escribe)."""
+    try:
+        return inquirer.secret(message=prompt).execute()
+    except (KeyboardInterrupt, EOFError):
+        return None
+    except Exception:
+        # fallback si el terminal no soporta secret
+        import getpass
+        try:
+            return getpass.getpass(prompt + ": ")
+        except (KeyboardInterrupt, EOFError):
+            return None
 
 
 def confirm(prompt, default=True):
@@ -865,8 +940,7 @@ def handle_live(client, channel_item=None):
         (76189, "24/7 Marathons"),
     ]
 
-    cat_choices = [("Stream current", "mirror what's playing on the device")]
-    cat_choices += [(name, "") for _, name in FEATURED_CATS]
+    cat_choices = [(name, "") for _, name in FEATURED_CATS]
     country_cats = [(c.get("columnId"), c.get("name", "?")) for c in cats
                     if c.get("name") in ("Colombia", "Mexico", "Venezuela", "Chile",
                                          "Peru", "Ecuador", "Estados Unidos", "España")]
@@ -878,11 +952,7 @@ def handle_live(client, channel_item=None):
     if idx is None:
         return
 
-    if idx == 0:
-        stream_live(client, "", "Current channel")
-        return
-
-    feat_idx = idx - 1
+    feat_idx = idx
     if feat_idx < len(FEATURED_CATS):
         col_id = FEATURED_CATS[feat_idx][0]
         cat_name = FEATURED_CATS[feat_idx][1]
@@ -1014,64 +1084,37 @@ def get_live_cdn_auth(client, channel_code):
 
 
 def stream_live(client, channel_code, channel_name):
-    """Reproduce TV en vivo en VLC/mpv de forma INDEPENDIENTE (sin app ni emulador):
-    arma el Content-Auth con sign_o3 y levanta un proxy local que re-firma cada segmento."""
+    """Reproduce TV en vivo 100% Python (sin app ni emulador): resuelve el CDN Cloudflare
+    (sign_type=cfl) via get_slb — igual que las películas — y levanta un proxy HLS local que
+    re-firma cada segmento .ts con sign_o3 (live_cfl.py). Ver MAGIA_RUNBOOK.md."""
+    import live_cfl
     player = _ensure_player()
     if not player:
+        return
+    if not channel_code:
+        error("No hay canal seleccionado.")
         return
 
     info(f"Preparando: {channel_name}...")
     time.sleep(API_DELAY)
 
-    # 1) Content-License + media_code (playCode) del canal
-    live = client.play_live(channel_code)
-    addrs = live.get("liveAddressList", []) if isinstance(live, dict) else []
-    if not addrs:
-        error("No se pudo obtener el stream (play_live).")
-        return
-    addr = addrs[0]
-    content_license = addr.get("license", "")
-    media_code = addr.get("playCode", "") or channel_code
-
-    # 2) host + prefijo del Content-Auth (token de sesión) desde el SLB
-    host, auth_prefix = get_live_cdn_auth(client, channel_code)
-    if not auth_prefix or not content_license:
-        # NOTA: get_slb(live) entrega CDN tipo CF (sign_type=cfl) e iCDN (sign_type=cs),
-        # pero NO el prefijo con sign2_method=sign_o3. Ese prefijo (endpoint iCDN real
-        # 149.34.241.153:8119 + token lowercase) lo produce el redirect SLB/svs
-        # (xsvs...:18084, P2SP) que todavía falta replicar. sign_o3 + el proxy ya funcionan
-        # en cuanto se tenga ese prefijo (ver SIGN_O3_CRACK.md / memoria).
-        error("Falta el paso de sesión iCDN (redirect svs) para armar el Content-Auth.")
-        warn("sign_o3 y el proxy ya están listos; pendiente: replicar el redirect svs.")
-        return
-
-    # 3) Sesión + proxy local que re-firma cada request con sign_o3 (Python puro)
+    # Resolver el CDN cfl (host + Content-Auth + Content-License + token) y levantar el proxy.
     try:
-        session = LiveSession(host, auth_prefix, content_license)
-    except ValueError as e:
-        error(f"Content-Auth inválido: {e}")
+        host, cfl_url, content_license, token = live_cfl.resolve_live_cfl(client, channel_code)
+    except Exception as e:
+        error(f"No se pudo resolver el canal en vivo: {e}")
         return
-    proxy = LiveProxy(session)
-    port = proxy.start()
-    _ACTIVE_LIVE_PROXIES.append(proxy)
-    url = proxy.url_for(media_code)
+
+    httpd, port = live_cfl.start_proxy(host, cfl_url, content_license, token, channel_code)
+    _ACTIVE_LIVE_PROXIES.append(httpd)
+    url = f"http://127.0.0.1:{port}/play.m3u8"
 
     success(f"Streaming: {channel_name}")
-    info(f"Proxy local re-firmando en 127.0.0.1:{port}")
+    info(f"Proxy local (cfl + sign_o3) en 127.0.0.1:{port}")
 
-    plat = sys.platform
-    if player == "mpv":
-        cmd = ["mpv", url, "--cache=yes"]
-    elif player == "iina" and plat == "darwin":
-        cmd = ["open", "-a", "IINA", url]
-    elif player == "vlc" and plat == "darwin":
-        cmd = ["open", "-a", "VLC", url]
-    elif player == "vlc":
-        cmd = ["vlc", url]
-    else:
-        cmd = [player, url]
-    subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    info(t("opening_player", player=player.upper()))
+    # Mismo abridor que películas/capítulos: en Mac prefiere VLC (open -a VLC).
+    # El proxy ya maneja Content-Auth/Content-License + sign_o3, así que el player sólo abre la URL.
+    _open_in_player(player, url, "", "")
 
 
 def show_live_url(client, channel_code, channel_name):
@@ -1968,7 +2011,7 @@ OPTIONAL_VARS = [
     ("IPTV_DEVICE_TOKEN",    "Device Token (leave empty to skip)"),
     ("IPTV_DEVICE_RESERVE1", "Device Reserve1 (leave empty to skip)"),
     ("IPTV_USERNAME",        "Login email (leave empty to skip)"),
-    ("IPTV_PASSWORD",        "Encrypted password (leave empty to skip)"),
+    ("IPTV_PASSWORD",        "Login password (plain text, hashed automatically; leave empty to skip)"),
     ("IPTV_DOWNLOAD_DIR",    "Download directory"),
 ]
 
@@ -2043,8 +2086,12 @@ def run_setup(reason):
     console.print()
     for var, label in OPTIONAL_VARS:
         current = os.environ.get(var, "")
-        default = current if current else ("downloads" if var == "IPTV_DOWNLOAD_DIR" else "")
-        val = ask(label, default)
+        if var == "IPTV_PASSWORD":
+            # oculto; se guarda en TEXTO PLANO (login() lo hashea con MD5 al enviarlo).
+            val = ask_secret(label)
+        else:
+            default = current if current else ("downloads" if var == "IPTV_DOWNLOAD_DIR" else "")
+            val = ask(label, default)
         if val:
             values[var] = val
 
@@ -2069,7 +2116,7 @@ def run_setup(reason):
         f"IPTV_DEVICE_TOKEN={values.get('IPTV_DEVICE_TOKEN', '')}",
         f"IPTV_DEVICE_RESERVE1={values.get('IPTV_DEVICE_RESERVE1', '')}",
         "",
-        "# Login credentials (optional)",
+        "# Login credentials (optional; password in PLAIN text, se hashea con MD5 al loguear)",
         f"IPTV_USERNAME={values.get('IPTV_USERNAME', '')}",
         f"IPTV_PASSWORD={values.get('IPTV_PASSWORD', '')}",
         "",
@@ -2088,6 +2135,109 @@ def run_setup(reason):
     console.print()
     success(f".env saved to {env_path}")
     console.print()
+
+
+# ─── Auth: registro / recuperar contraseña ───
+def _maybe_save_creds(username, password):
+    """Ofrece guardar credenciales en .env para auto-login la proxima vez."""
+    if os.environ.get("IPTV_USERNAME") and os.environ.get("IPTV_PASSWORD"):
+        return
+    if confirm(t("save_creds"), default=True):
+        env_path = _env_dir() / ".env"
+        _update_env_var(env_path, "IPTV_USERNAME", username)
+        _update_env_var(env_path, "IPTV_PASSWORD", password)
+        os.environ["IPTV_USERNAME"] = username
+        os.environ["IPTV_PASSWORD"] = password
+        success(t("creds_saved"))
+
+
+def register_account():
+    """Flujo de REGISTRO: email + codigo -> validate -> bindEmail -> login. Devuelve client logueado o None.
+
+    Secuencia (verificada, ver MAGIA_RUNBOOK.md §11):
+      sendEmailVerifyCode(type=1) -> validateVerifyCode(type=1) -> bindEmail(type=1) -> login.
+    El validate es OBLIGATORIO antes del bind (sin el, el server responde 'codigo no coincide')."""
+    email = ask(t("email_user"))
+    if not email:
+        warn(t("email_required")); return None
+    info(t("pwd_tip"))
+    password = ask_secret(t("enc_password"))
+    if not password:
+        warn(t("pwd_required")); return None
+    client = IPTVClient()  # cuenta de device (userId/userToken para los requests)
+    if not getattr(client, "user_id", None):
+        error(t("not_activated")); return None
+    info(t("sending_code", email=email))
+    r = client.send_email_verify_code(email, type_="1")
+    if isinstance(r, dict) and "_error" in r:
+        error(t("code_send_fail", msg=r.get("_msg", r.get("_error"))))
+        return None
+    success(t("code_sent"))
+    info(t("check_email_hint"))
+    code = ask(t("verify_code"))
+    if not code:
+        warn(t("code_required")); return None
+    info(t("validating_code"))
+    rv = client.validate_verify_code(email, code, type_="1")       # requerido antes del bind
+    if isinstance(rv, dict) and (rv.get("_error") or str(rv.get("returnCode", "0")) not in ("0", "")):
+        error(t("code_send_fail", msg=rv.get("_msg", rv.get("errorMessage", rv.get("_error", "")))))
+        return None
+    success(t("code_ok"))
+    info(t("creating_account"))
+    rb = client.bind_email(email, password, type_="1")
+    if isinstance(rb, dict) and "_error" in rb:
+        if "100077" in str(rb.get("_error", "")):              # aaa100077 = email ya bindeado
+            error(t("email_in_use")); info(t("one_email_note"))
+        else:
+            error(t("register_fail", msg=rb.get("_msg", rb.get("_error"))))
+        return None
+    info(t("logging_in"))
+    c2 = IPTVClient(auto_activate=False)
+    rl = c2.login(email, password)
+    if isinstance(rl, dict) and rl.get("userToken"):
+        success(f"{t('registered')} -- userId={c2.user_id}")
+        _maybe_save_creds(email, password)
+        return c2
+    error(t("login_failed", msg=(rl or {}).get("_msg", (rl or {}).get("_error", ""))))
+    return None
+
+
+def recover_password():
+    """Flujo de RECUPERAR CONTRASENA: email + codigo -> resetPwd -> login. Devuelve client o None."""
+    email = ask(t("email_user"))
+    if not email:
+        warn(t("email_required")); return None
+    client = IPTVClient()
+    if not getattr(client, "user_id", None):
+        error(t("not_activated")); return None
+    info(t("sending_code", email=email))
+    r = client.send_email_verify_code(email, type_="3")
+    if isinstance(r, dict) and "_error" in r:
+        error(t("code_send_fail", msg=r.get("_msg", r.get("_error"))))
+        return None
+    success(t("code_sent"))
+    info(t("check_email_hint"))
+    code = ask(t("verify_code"))
+    if not code:
+        warn(t("code_required")); return None
+    info(t("pwd_tip"))
+    newpass = ask_secret(t("new_password"))
+    if not newpass:
+        warn(t("newpwd_required")); return None
+    info(t("resetting"))
+    rr = client.reset_pwd(email, newpass, code, type_="3")
+    if isinstance(rr, dict) and "_error" in rr:
+        error(t("reset_fail", msg=rr.get("_msg", rr.get("_error"))))
+        return None
+    info(t("logging_in"))
+    c2 = IPTVClient(auto_activate=False)
+    rl = c2.login(email, newpass)
+    if isinstance(rl, dict) and rl.get("userToken"):
+        success(f"{t('pwd_reset_ok')} -- userId={c2.user_id}")
+        _maybe_save_creds(email, newpass)
+        return c2
+    error(t("login_failed", msg=(rl or {}).get("_msg", (rl or {}).get("_error", ""))))
+    return None
 
 
 # ─── Main ───
@@ -2131,6 +2281,8 @@ def main():
     auth_choices = [
         (t("free_tier"), t("free_hint")),
         (t("login_account"), t("login_hint")),
+        (t("register"), t("register_hint")),
+        (t("recover_pwd"), t("recover_hint")),
     ]
     auth_idx = select_menu(t("select_auth"), auth_choices, back=False)
     if auth_idx is None:
@@ -2138,9 +2290,25 @@ def main():
 
     info(t("connecting"))
 
-    if auth_idx == 0:
+    if auth_idx == 2:
+        # Registro (email nuevo + codigo). Si falla, cae a free.
+        client = register_account()
+        if client is None:
+            warn(t("fallback_free")); client = IPTVClient()
+            success(f"{t('connected_free')} -- userId={client.user_id}")
+    elif auth_idx == 3:
+        # Recuperar contrasena (email + codigo). Si falla, cae a free.
+        client = recover_password()
+        if client is None:
+            warn(t("fallback_free")); client = IPTVClient()
+            success(f"{t('connected_free')} -- userId={client.user_id}")
+    elif auth_idx == 0:
+        info(t("activating"))
         client = IPTVClient()
-        success(f"{t('connected_free')} -- userId={client.user_id}")
+        if getattr(client, "user_id", None):
+            success(f"{t('connected_free')} -- userId={client.user_id}")
+        else:
+            error(t("not_activated")); return
     else:
         env_user = os.environ.get("IPTV_USERNAME", "")
         env_pass = os.environ.get("IPTV_PASSWORD", "")
@@ -2148,16 +2316,21 @@ def main():
             info(t("using_creds", u=env_user))
             username, password = env_user, env_pass
         else:
+            info(t("pwd_tip"))
             username = ask(t("email_user"))
             if not username:
-                return
-            password = ask(t("enc_password"))
+                warn(t("email_required"))
+                password = None
+            else:
+                password = ask_secret(t("enc_password"))   # prompt OCULTO
         if not password:
-            warn(f"Tip: {t('pwd_tip')}")
+            if username:
+                warn(t("pwd_required"))
             warn(t("fallback_free"))
             client = IPTVClient()
             success(f"{t('connected_free')} -- userId={client.user_id}")
         else:
+            info(t("logging_in"))
             client = IPTVClient(auto_activate=False)
             result = client.login(username, password)
             if "_error" in result:
@@ -2166,6 +2339,14 @@ def main():
                 client = IPTVClient()
             else:
                 success(f"{t('logged_in')} -- userId={client.user_id}")
+                # Ofrecer guardar credenciales para auto-login la proxima vez.
+                if not (env_user and env_pass) and confirm(t("save_creds"), default=True):
+                    env_path = _env_dir() / ".env"
+                    _update_env_var(env_path, "IPTV_USERNAME", username)
+                    _update_env_var(env_path, "IPTV_PASSWORD", password)
+                    os.environ["IPTV_USERNAME"] = username
+                    os.environ["IPTV_PASSWORD"] = password
+                    success(t("creds_saved"))
 
     # CDN auth
     info(t("cdn_auth"))
