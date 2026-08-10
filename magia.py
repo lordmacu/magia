@@ -174,6 +174,7 @@ STRINGS = {
         "resetting": "Resetting your password...",
         "activating": "Activating device (free account)...",
         "not_activated": "The device could not be activated (no userId). Check your connection / .env and try again.",
+        "device_linked": "This device is linked to an account with a password, so free tier no longer works on it. Switching to login...",
         "email_in_use": "That email is already registered. Use 'Login' or 'Recover password' instead.",
         "one_email_note": "Note: each device can register only one email (provider rule). To register another, you need a fresh device SN.",
         "cancelled": "Cancelled -- nothing was changed.",
@@ -306,6 +307,7 @@ STRINGS = {
         "resetting": "Reseteando tu contrasena...",
         "activating": "Activando dispositivo (cuenta gratuita)...",
         "not_activated": "No se pudo activar el dispositivo (sin userId). Revisa tu conexion / .env e intenta de nuevo.",
+        "device_linked": "Este dispositivo esta vinculado a una cuenta con contrasena, asi que el modo gratuito ya no funciona en el. Pasando a inicio de sesion...",
         "email_in_use": "Ese email ya esta registrado. Usa 'Iniciar sesion' o 'Recuperar contrasena'.",
         "one_email_note": "Nota: cada dispositivo solo puede registrar un email (regla del proveedor). Para otro, necesitas un SN nuevo.",
         "cancelled": "Cancelado -- no se cambio nada.",
@@ -2224,6 +2226,53 @@ def _maybe_save_creds(username, password):
         success(t("creds_saved"))
 
 
+def _activate_free():
+    """Activa el device (tier free). Devuelve (client|None, status):
+      'ok'     -> activado, client usable
+      'linked' -> aaa100082: el device quedo atado a una cuenta con password -> usar login
+      'failed' -> otro error (red/.env)"""
+    client = IPTVClient(auto_activate=False)
+    r = client.activate()
+    if getattr(client, "user_id", ""):
+        return client, "ok"
+    if isinstance(r, dict) and str(r.get("_error", "")) == "aaa100082":
+        return None, "linked"
+    return None, "failed"
+
+
+def _login_interactive(prefill_user="", prefill_pass=""):
+    """Pide email + password (o usa los prefill), hace login y devuelve un client de cuenta
+    (is_account=True) o None. Al exito ofrece guardar credenciales para el auto-login."""
+    if prefill_user and prefill_pass:
+        username, password = prefill_user, prefill_pass
+        info(t("using_creds", u=username))
+    else:
+        info(t("pwd_tip"))
+        username = ask(t("email_user"))
+        if not username:
+            warn(t("email_required")); return None
+        password = ask_secret(t("enc_password"))   # prompt OCULTO
+    if not password:
+        warn(t("pwd_required")); return None
+    info(t("logging_in"))
+    client = IPTVClient(auto_activate=False)
+    result = client.login(username, password)
+    if _is_err(result) or not client.user_id:
+        error(t("login_failed", msg=_err_msg(result)))
+        return None
+    client.is_account = True
+    success(f"{t('logged_in')} -- userId={client.user_id}")
+    already = (os.environ.get("IPTV_USERNAME") == username and os.environ.get("IPTV_PASSWORD") == password)
+    if not already and confirm(t("save_creds"), default=True):
+        env_path = _env_dir() / ".env"
+        _update_env_var(env_path, "IPTV_USERNAME", username)
+        _update_env_var(env_path, "IPTV_PASSWORD", password)
+        os.environ["IPTV_USERNAME"] = username
+        os.environ["IPTV_PASSWORD"] = password
+        success(t("creds_saved"))
+    return client
+
+
 def register_account():
     """Flujo de REGISTRO: email + codigo -> validate -> bindEmail -> login. Devuelve client logueado o None.
 
@@ -2356,6 +2405,19 @@ def main():
     force_free = "--free" in sys.argv
     force_menu = any(f in sys.argv for f in ("--switch", "--login", "--menu"))
 
+    def _free_or_login(pf_user="", pf_pass=""):
+        """Activa el tier free; si el device quedo atado a una cuenta (aaa100082) enruta a
+        login. Devuelve un client usable o None (ya mostro el mensaje correspondiente)."""
+        c, status = _activate_free()
+        if status == "ok":
+            success(f"{t('connected_free')} -- userId={c.user_id}")
+            return c
+        if status == "linked":
+            warn(t("device_linked"))
+            return _login_interactive(pf_user, pf_pass)
+        error(t("not_activated"))
+        return None
+
     client = None
 
     # AUTO-LOGIN: si hay credenciales guardadas, entrar directo (lo que promete "save_creds").
@@ -2363,11 +2425,9 @@ def main():
     #   magia --free    -> tier free por esta corrida (sin tocar las credenciales guardadas)
     if force_free:
         info(t("activating"))
-        client = IPTVClient()
-        if getattr(client, "user_id", None):
-            success(f"{t('connected_free')} -- userId={client.user_id}")
-        else:
-            error(t("not_activated")); return
+        client = _free_or_login(env_user, env_pass)
+        if client is None:
+            return
     elif env_user and env_pass and not force_menu:
         info(t("using_creds", u=env_user))
         info(t("logging_in"))
@@ -2398,71 +2458,42 @@ def main():
         info(t("connecting"))
 
         if auth_idx == 2:
-            # Registro (email nuevo + codigo). Si falla, cae a free.
+            # Registro (email nuevo + codigo). Si falla, cae a free (o login si el device esta atado).
             client = register_account()
             if client is None:
-                warn(t("fallback_free")); client = IPTVClient()
-                success(f"{t('connected_free')} -- userId={client.user_id}")
+                warn(t("fallback_free")); client = _free_or_login(env_user, env_pass)
+                if client is None:
+                    return
             else:
                 client.is_account = True
         elif auth_idx == 3:
-            # Recuperar contrasena (email + codigo). Si falla, cae a free.
+            # Recuperar contrasena (email + codigo). Si falla, cae a free (o login).
             client = recover_password()
             if client is None:
-                warn(t("fallback_free")); client = IPTVClient()
-                success(f"{t('connected_free')} -- userId={client.user_id}")
+                warn(t("fallback_free")); client = _free_or_login(env_user, env_pass)
+                if client is None:
+                    return
             else:
                 client.is_account = True
         elif auth_idx == 4:
-            # Logout: borra credenciales guardadas y usa tier free esta corrida.
+            # Logout: borra credenciales guardadas y sale (Salir mantiene la sesion).
             _clear_saved_creds()
             success(t("logged_out"))
-            env_user = env_pass = ""
-            client = IPTVClient()
-            success(f"{t('connected_free')} -- userId={client.user_id}")
+            console.print(f"\n  [dim]{t('bye')}[/dim]\n")
+            return
         elif auth_idx == 0:
             info(t("activating"))
-            client = IPTVClient()
-            if getattr(client, "user_id", None):
-                success(f"{t('connected_free')} -- userId={client.user_id}")
-            else:
-                error(t("not_activated")); return
+            client = _free_or_login(env_user, env_pass)
+            if client is None:
+                return
         else:
-            # Login manual (idx 1). Siempre se piden credenciales frescas: solo se llega aqui
-            # cuando NO habia credenciales guardadas, o cuando --switch/--menu (cambiar cuenta),
-            # o cuando el auto-login de arriba fallo con las guardadas (reusarlas volveria a fallar).
-            info(t("pwd_tip"))
-            username = ask(t("email_user"))
-            if not username:
-                warn(t("email_required"))
-                password = None
-            else:
-                password = ask_secret(t("enc_password"))   # prompt OCULTO
-            if not password:
-                if username:
-                    warn(t("pwd_required"))
+            # Login manual (idx 1). Credenciales frescas (no reusar las guardadas que ya fallaron).
+            client = _login_interactive()
+            if client is None:
                 warn(t("fallback_free"))
-                client = IPTVClient()
-                success(f"{t('connected_free')} -- userId={client.user_id}")
-            else:
-                info(t("logging_in"))
-                client = IPTVClient(auto_activate=False)
-                result = client.login(username, password)
-                if _is_err(result) or not client.user_id:
-                    error(t("login_failed", msg=_err_msg(result)))
-                    warn(t("fallback_free"))
-                    client = IPTVClient()
-                else:
-                    client.is_account = True
-                    success(f"{t('logged_in')} -- userId={client.user_id}")
-                    # Guardar credenciales para auto-login la proxima vez (o actualizar al cambiar de cuenta).
-                    if confirm(t("save_creds"), default=True):
-                        env_path = _env_dir() / ".env"
-                        _update_env_var(env_path, "IPTV_USERNAME", username)
-                        _update_env_var(env_path, "IPTV_PASSWORD", password)
-                        os.environ["IPTV_USERNAME"] = username
-                        os.environ["IPTV_PASSWORD"] = password
-                        success(t("creds_saved"))
+                client = _free_or_login()
+                if client is None:
+                    return
 
     # CDN auth
     info(t("cdn_auth"))
