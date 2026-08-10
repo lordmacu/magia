@@ -69,7 +69,9 @@
   .cmdbox code{font-family:var(--mono);font-size:.8rem;color:var(--ink);white-space:nowrap;flex:1 1 auto}
   .cmdbox .copybtn{flex:none;font-family:var(--mono);font-size:.74rem;font-weight:600;color:var(--cyan);background:transparent;border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;transition:.15s}
   .cmdbox .copybtn:hover{border-color:var(--cyan);background:rgba(56,225,214,.08)}
-  .hero-install-sub{margin-top:9px;font-family:var(--mono);font-size:.77rem;color:var(--faint)}
+  .hero-install .cmdrow{margin-bottom:10px}
+  .hero-install .oslabel{display:block;font-family:var(--mono);font-size:.71rem;color:var(--faint);margin:0 0 4px 3px;text-align:left;letter-spacing:.5px}
+  .hero-install-sub{margin-top:4px;font-family:var(--mono);font-size:.77rem;color:var(--faint)}
   .hero-install-sub a{color:var(--dim)}
 
   /* ---- live banner ---- */
@@ -173,12 +175,23 @@
   </div>
 
   <div class="hero-install">
-    <div class="cmdbox">
-      <span class="cmd-prompt">$</span>
-      <code>curl -sL https://raw.githubusercontent.com/lordmacu/magia/main/install.sh | bash</code>
-      <button class="copybtn" onclick="var b=this;navigator.clipboard.writeText('curl -sL https://raw.githubusercontent.com/lordmacu/magia/main/install.sh | bash').then(function(){b.textContent='Copied!';setTimeout(function(){b.textContent='Copy'},1500)})">Copy</button>
+    <div class="cmdrow">
+      <span class="oslabel">macOS / Linux</span>
+      <div class="cmdbox">
+        <span class="cmd-prompt">$</span>
+        <code>curl -sL https://raw.githubusercontent.com/lordmacu/magia/main/install.sh | bash</code>
+        <button class="copybtn" onclick="var b=this;navigator.clipboard.writeText('curl -sL https://raw.githubusercontent.com/lordmacu/magia/main/install.sh | bash').then(function(){b.textContent='Copied!';setTimeout(function(){b.textContent='Copy'},1500)})">Copy</button>
+      </div>
     </div>
-    <div class="hero-install-sub">macOS / Linux &#183; <a href="#install">Windows &amp; manual install &#8595;</a></div>
+    <div class="cmdrow">
+      <span class="oslabel">Windows (PowerShell)</span>
+      <div class="cmdbox">
+        <span class="cmd-prompt">&gt;</span>
+        <code>irm https://raw.githubusercontent.com/lordmacu/magia/main/install.ps1 | iex</code>
+        <button class="copybtn" onclick="var b=this;navigator.clipboard.writeText('irm https://raw.githubusercontent.com/lordmacu/magia/main/install.ps1 | iex').then(function(){b.textContent='Copied!';setTimeout(function(){b.textContent='Copy'},1500)})">Copy</button>
+      </div>
+    </div>
+    <div class="hero-install-sub"><a href="#install">Prefer manual install? &#8595;</a></div>
   </div>
 
   <div class="live">
