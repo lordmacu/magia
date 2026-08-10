@@ -1096,8 +1096,8 @@ def _browse_channels(client, channels, title):
 
 def _handle_live_channel(client, channel_code, channel_name):
     choices = [
-        ("▶️  Stream", "open in VLC/mpv", "fg:ansigreen"),   # reproductor -> verde
-        ("ℹ️  View details", "playCode, license, CDN"),
+        ("▶ Stream", "open in VLC/mpv", "fg:ansigreen"),   # reproductor -> verde
+        ("≡ View details", "playCode, license, CDN"),
     ]
     idx = select_menu(f"{channel_name}", choices)
     if idx is None:
@@ -1282,13 +1282,13 @@ def handle_series(client, item, cdn_base, cf_auth, out_dir):
     series_dir = out_dir / safe_name
 
     choices = [
-        (f"⬇️  {t('dl_all')}", f"{len(episodes)} eps -> {safe_name}/"),
-        (f"🔢 {t('dl_range')}", "e.g. episodes 1-10"),
-        (f"1️⃣  {t('dl_single')}", ""),
-        (f"📑 {t('browse_eps')}", ""),
-        (f"▶️  {t('stream_play')}", t("stream_play_hint"), "fg:ansigreen"),   # reproductor -> verde
-        (f"ℹ️  {t('view_details')}", ""),
-        (f"🔗 {t('view_link')}", t("view_link_hint")),
+        (f"↓ {t('dl_all')}", f"{len(episodes)} eps -> {safe_name}/"),
+        (f"↓ {t('dl_range')}", "e.g. episodes 1-10"),
+        (f"↓ {t('dl_single')}", ""),
+        (f"▸ {t('browse_eps')}", ""),
+        (f"▶ {t('stream_play')}", t("stream_play_hint"), "fg:ansigreen"),   # reproductor -> verde
+        (f"≡ {t('view_details')}", ""),
+        (f"↗ {t('view_link')}", t("view_link_hint")),
     ]
     idx = select_menu(t("what_to_do"), choices)
     if idx is None:
@@ -1496,10 +1496,10 @@ def handle_movie(client, item, cdn_base, cf_auth, out_dir):
         console.print(table)
 
     choices = [
-        (f"⬇️  {t('dl_movie')}", t("dl_movie_hint")),
-        (f"▶️  {t('stream_play')}", t("stream_play_hint"), "fg:ansigreen"),   # reproductor -> verde
-        (f"ℹ️  {t('view_details')}", t("view_details_hint")),
-        (f"🔗 {t('view_link')}", t("view_link_hint")),
+        (f"↓ {t('dl_movie')}", t("dl_movie_hint")),
+        (f"▶ {t('stream_play')}", t("stream_play_hint"), "fg:ansigreen"),   # reproductor -> verde
+        (f"≡ {t('view_details')}", t("view_details_hint")),
+        (f"↗ {t('view_link')}", t("view_link_hint")),
     ]
     idx = select_menu(t("what_to_do"), choices)
     if idx is None:
@@ -2485,25 +2485,25 @@ def main():
         section(t("main_menu"))
         tg_label = f"{t('telegram')} (ON)" if tg.is_configured() else t("telegram")
         menu = [
-            (f"🔍 {t('search')}",          t("search_hint")),
-            (f"🆕 {t('latest')}",          t("latest_hint")),
-            (f"🎭 {t('by_genre')}",        t("genre_hint")),
-            (f"📅 {t('by_year')}",         t("year_hint")),
-            (f"🌎 {t('by_country')}",      t("country_hint")),
-            (f"🎬 {t('by_person')}",       t("person_hint")),
-            (f"⭐ {t('recommendations')}", t("rec_hint")),
-            (f"📺 {t('live_tv')}",         t("live_hint"), "fg:ansigreen"),   # playback -> verde
-            (f"💬 {tg_label}",             t("telegram_hint")),
-            (f"❓ {t('help')}",            t("help_hint")),
+            (f"⌕ {t('search')}",          t("search_hint")),
+            (f"✦ {t('latest')}",          t("latest_hint")),
+            (f"◆ {t('by_genre')}",        t("genre_hint")),
+            (f"◷ {t('by_year')}",         t("year_hint")),
+            (f"◍ {t('by_country')}",      t("country_hint")),
+            (f"☺ {t('by_person')}",       t("person_hint")),
+            (f"★ {t('recommendations')}", t("rec_hint")),
+            (f"▶ {t('live_tv')}",         t("live_hint"), "fg:ansigreen"),   # playback -> verde
+            (f"➤ {tg_label}",             t("telegram_hint")),
+            (f"? {t('help')}",            t("help_hint")),
         ]
         # "Cerrar sesion" solo si estamos en una sesion de CUENTA (no free tier).
         # Se pone antes de "Salir": Salir mantiene la sesion; Cerrar sesion la olvida.
         logout_idx = None
         if getattr(client, "is_account", False):
             logout_idx = len(menu)
-            menu.append((f"🔒 {t('logout')}", t("logout_hint"), "fg:ansired"))
+            menu.append((f"⎋ {t('logout')}", t("logout_hint"), "fg:ansired"))
         exit_idx = len(menu)
-        menu.append((f"🚪 {t('exit')}", "", "fg:ansired"))
+        menu.append((f"✕ {t('exit')}", "", "fg:ansired"))
 
         idx = select_menu(t("select"), menu, back=False)
         if idx is None or idx == exit_idx:
