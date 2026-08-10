@@ -174,7 +174,10 @@ STRINGS = {
         "resetting": "Resetting your password...",
         "activating": "Activating device (free account)...",
         "not_activated": "The device could not be activated (no userId). Check your connection / .env and try again.",
-        "device_linked": "This device is linked to an account with a password, so free tier no longer works on it. Switching to login...",
+        "device_linked": "This device is linked to an account, so free tier no longer works on it. Provisioning a fresh anonymous device...",
+        "provisioning": "Creating a new anonymous device...",
+        "device_saved": "New anonymous device saved to .env.",
+        "provision_failed": "Could not create a new device: {msg}",
         "email_in_use": "That email is already registered. Use 'Login' or 'Recover password' instead.",
         "one_email_note": "Note: each device can register only one email (provider rule). To register another, you need a fresh device SN.",
         "cancelled": "Cancelled -- nothing was changed.",
@@ -307,7 +310,10 @@ STRINGS = {
         "resetting": "Reseteando tu contrasena...",
         "activating": "Activando dispositivo (cuenta gratuita)...",
         "not_activated": "No se pudo activar el dispositivo (sin userId). Revisa tu conexion / .env e intenta de nuevo.",
-        "device_linked": "Este dispositivo esta vinculado a una cuenta con contrasena, asi que el modo gratuito ya no funciona en el. Pasando a inicio de sesion...",
+        "device_linked": "Este dispositivo esta atado a una cuenta, asi que el modo gratuito ya no funciona en el. Creando un device anonimo nuevo...",
+        "provisioning": "Creando un device anonimo nuevo...",
+        "device_saved": "Device anonimo nuevo guardado en .env.",
+        "provision_failed": "No se pudo crear un device nuevo: {msg}",
         "email_in_use": "Ese email ya esta registrado. Usa 'Iniciar sesion' o 'Recuperar contrasena'.",
         "one_email_note": "Nota: cada dispositivo solo puede registrar un email (regla del proveedor). Para otro, necesitas un SN nuevo.",
         "cancelled": "Cancelado -- no se cambio nada.",
@@ -1618,8 +1624,9 @@ def show_help():
         "[bold]Free tier:[/bold]  auto-activates, most content available\n"
         "[bold]Login:[/bold]     email + password (for account features)\n"
         "[bold]Auto-login:[/bold] once saved, 'magia' logs you in automatically\n"
-        "  [dim]magia --switch[/dim]  change account / register / recover / log out\n"
-        "  [dim]magia --free[/dim]    force free tier for one run\n\n"
+        "  [dim]magia --switch[/dim]      change account / register / recover / log out\n"
+        "  [dim]magia --free[/dim]        force free tier for one run\n"
+        "  [dim]magia --new-device[/dim]  provision a fresh anonymous device (free tier)\n\n"
         "Press [bold]Ctrl+C[/bold] to exit at any time\n"
         "Downloaded episodes are auto-skipped on re-run\n"
         "CDN auth refreshes every 30 episodes automatically",
@@ -2273,6 +2280,25 @@ def _login_interactive(prefill_user="", prefill_pass=""):
     return client
 
 
+def _new_anonymous(persist=True):
+    """Provisiona un device ANONIMO nuevo (modo free) via v3/snToken + v8/active, sin tocar
+    ninguna cuenta. Si persist=True guarda el SN nuevo en .env para las proximas corridas.
+    Devuelve el client free o None."""
+    info(t("provisioning"))
+    c = IPTVClient(auto_activate=False)
+    r = c.new_anonymous_device()
+    if not (isinstance(r, dict) and r.get("userToken")):
+        error(t("provision_failed", msg=_err_msg(r) if isinstance(r, dict) else str(r)))
+        return None
+    success(f"{t('connected_free')} -- userId={c.user_id}")
+    if persist and r.get("sn"):
+        env_path = _env_dir() / ".env"
+        _update_env_var(env_path, "IPTV_DEVICE_SN", r["sn"])
+        os.environ["IPTV_DEVICE_SN"] = r["sn"]
+        success(t("device_saved"))
+    return c
+
+
 def register_account():
     """Flujo de REGISTRO: email + codigo -> validate -> bindEmail -> login. Devuelve client logueado o None.
 
@@ -2404,26 +2430,32 @@ def main():
     env_pass = os.environ.get("IPTV_PASSWORD", "")
     force_free = "--free" in sys.argv
     force_menu = any(f in sys.argv for f in ("--switch", "--login", "--menu"))
+    force_new_device = any(f in sys.argv for f in ("--new-device", "--reset-device"))
 
     def _free_or_login(pf_user="", pf_pass=""):
-        """Activa el tier free; si el device quedo atado a una cuenta (aaa100082) enruta a
-        login. Devuelve un client usable o None (ya mostro el mensaje correspondiente)."""
+        """Activa el tier free; si el device quedo atado a una cuenta (aaa100082) provisiona un
+        device anonimo NUEVO (sin tocar la cuenta). Devuelve un client usable o None."""
         c, status = _activate_free()
         if status == "ok":
             success(f"{t('connected_free')} -- userId={c.user_id}")
             return c
         if status == "linked":
             warn(t("device_linked"))
-            return _login_interactive(pf_user, pf_pass)
+            return _new_anonymous(persist=True)
         error(t("not_activated"))
         return None
 
     client = None
 
-    # AUTO-LOGIN: si hay credenciales guardadas, entrar directo (lo que promete "save_creds").
-    #   magia --switch  -> abre el menu (cambiar cuenta / registrar / recuperar / logout)
-    #   magia --free    -> tier free por esta corrida (sin tocar las credenciales guardadas)
-    if force_free:
+    # AUTO-LOGIN / arranque:
+    #   magia --switch      -> menu (cambiar cuenta / registrar / recuperar / logout)
+    #   magia --free        -> tier free por esta corrida (usa el device actual)
+    #   magia --new-device  -> provisiona un device anonimo NUEVO (modo free)
+    if force_new_device:
+        client = _new_anonymous(persist=True)
+        if client is None:
+            return
+    elif force_free:
         info(t("activating"))
         client = _free_or_login(env_user, env_pass)
         if client is None:

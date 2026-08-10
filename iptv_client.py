@@ -22,11 +22,16 @@ import base64
 import hashlib
 import json
 import os
+import secrets
 import sys
 import requests
 from Crypto.Cipher import DES3
 from Crypto.Util.Padding import pad, unpad
 from pathlib import Path
+
+# Salt para derivar el `sn` local a partir del snToken (v3/snToken -> device nuevo).
+# Descubierto en el APK (ac/a1.java): sn = MD5(snToken + SNTOKEN_SALT) en hex minúsculas.
+SNTOKEN_SALT = "ntFT65w6itH!lHCPw7D=@qnsFC5adD28"
 
 requests.packages.urllib3.disable_warnings()
 
@@ -205,6 +210,46 @@ class IPTVClient:
             return {"_skipped": "no session"}
         return self.call("v5/loginOut", {"userId": self.user_id, "userToken": self.user_token},
                          base_fields=False)
+
+    # ─────────────  DEVICE ANÓNIMO NUEVO (volver al modo free)  ─────────────
+    def new_anonymous_device(self):
+        """Provisiona un device ANÓNIMO nuevo y lo activa en tier free, SIN tocar ninguna cuenta.
+        Flujo (descubierto en el APK, ac/a1.java): v3/snToken -> snToken -> sn = MD5(snToken+salt)
+        -> v8/active.  Sirve para 'volver al anónimo' cuando el device viejo quedó atado a una
+        cuenta con password (v8/active -> aaa100082).  Al éxito deja self con userId/userToken free
+        y setea self.device['sn'] + self.sn_token (para persistir en .env si se quiere).
+        Devuelve la respuesta de active (con {sn, snToken} agregados) o un dict de error."""
+        def _mac():
+            return ":".join("%02x" % secrets.randbelow(256) for _ in range(6))
+        fp = {
+            "androidId": secrets.token_hex(8), "board": "goldfish_arm64", "brand": "google",
+            "cpuAbi": "arm64-v8a", "cpuId": secrets.token_hex(8), "device": "emu64a",
+            "diskInfo": "8GB", "display": "sdk_gphone64_arm64", "etheMac": _mac(),
+            "fingerprint": "google/sdk_gphone64_arm64/emu64a:14/UE1A.230829.036/11228894:user/release-keys",
+            "gatewayMac": _mac(), "hardware": "ranchu", "host": "abfarm", "manufacturer": "Google",
+            "ramSize": "4GB", "romSize": "8GB", "serialNumber": secrets.token_hex(8),
+            "tags": "release-keys", "verId": "", "wifiMac": _mac(),
+        }
+        # pedir snToken con una huella nueva y SIN mandar el device viejo
+        for k in ("sn", "drmId", "deviceToken", "reserve1"):
+            self.device[k] = ""
+        r = self.call("v3/snToken", fp, base_fields=False)
+        sn_token = r.get("snToken") if isinstance(r, dict) else None
+        if not sn_token:
+            return {"_error": "snToken_failed", "_detail": r}
+        sn = (r.get("sn") or hashlib.md5((sn_token + SNTOKEN_SALT).encode()).hexdigest()).lower()
+        self.device["sn"] = sn
+        self.sn_token = sn_token
+        bean = {"snToken": sn_token, "authVersion": "", "authCode": "", "preCode": "",
+                "macAddr": "02:00:00:00:00:00", "reserve1": "", "openNum": 4,
+                "channel": "default", "matadata": "", "signdata": ""}
+        ar = self.call("v8/active", bean, base_fields=False)
+        if isinstance(ar, dict) and ar.get("userToken"):
+            self.user_id = ar["userId"]
+            self.user_token = ar["userToken"]
+            self.jwt = ar.get("jwtToken", "")
+            ar = {**ar, "sn": sn, "snToken": sn_token}
+        return ar
 
     # ─────────────  REGISTRO / RECUPERAR CONTRASEÑA (email + código)  ─────────────
     @staticmethod
