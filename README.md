@@ -49,8 +49,16 @@ No Android device, emulator, adb or Frida is needed at runtime. Everything runs 
 
 ## Quick Install
 
+**macOS / Linux:**
+
 ```bash
 curl -sL https://raw.githubusercontent.com/lordmacu/magia/main/install.sh | bash
+```
+
+**Windows (PowerShell):**
+
+```powershell
+powershell -c "irm https://raw.githubusercontent.com/lordmacu/magia/main/install.ps1 | iex"
 ```
 
 Or manually:
