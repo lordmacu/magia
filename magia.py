@@ -1680,7 +1680,9 @@ def _update_env_var(env_path, var, value):
     content = env_path.read_text()
     import re as _re
     if _re.search(rf'^{var}=', content, _re.MULTILINE):
-        content = _re.sub(rf'^{var}=.*$', f'{var}={value}', content, flags=_re.MULTILINE)
+        # OJO: `value` va como funcion de reemplazo, NO como string, para que re.sub
+        # no interprete secuencias tipo \1 o \g<..> (passwords con backslash rompian esto).
+        content = _re.sub(rf'^{var}=.*$', lambda _m: f'{var}={value}', content, flags=_re.MULTILINE)
     else:
         if "# Telegram" not in content:
             content += "\n# Telegram notifications\n"
@@ -2138,6 +2140,19 @@ def run_setup(reason):
 
 
 # ─── Auth: registro / recuperar contraseña ───
+def _is_err(r):
+    """True si la respuesta del cliente es un error: returnCode != 0 (`_error`) o
+    fallo de red/parseo (`_exception`). Sin esto, una caida de red pasaba como exito."""
+    return isinstance(r, dict) and ("_error" in r or "_exception" in r)
+
+
+def _err_msg(r):
+    """Mejor mensaje de error disponible en una respuesta del cliente."""
+    if not isinstance(r, dict):
+        return str(r)
+    return r.get("_msg") or r.get("_error") or r.get("_exception") or ""
+
+
 def _maybe_save_creds(username, password):
     """Ofrece guardar credenciales en .env para auto-login la proxima vez."""
     if os.environ.get("IPTV_USERNAME") and os.environ.get("IPTV_PASSWORD"):
@@ -2169,8 +2184,8 @@ def register_account():
         error(t("not_activated")); return None
     info(t("sending_code", email=email))
     r = client.send_email_verify_code(email, type_="1")
-    if isinstance(r, dict) and "_error" in r:
-        error(t("code_send_fail", msg=r.get("_msg", r.get("_error"))))
+    if _is_err(r):
+        error(t("code_send_fail", msg=_err_msg(r)))
         return None
     success(t("code_sent"))
     info(t("check_email_hint"))
@@ -2179,17 +2194,17 @@ def register_account():
         warn(t("code_required")); return None
     info(t("validating_code"))
     rv = client.validate_verify_code(email, code, type_="1")       # requerido antes del bind
-    if isinstance(rv, dict) and (rv.get("_error") or str(rv.get("returnCode", "0")) not in ("0", "")):
-        error(t("code_send_fail", msg=rv.get("_msg", rv.get("errorMessage", rv.get("_error", "")))))
+    if _is_err(rv) or (isinstance(rv, dict) and str(rv.get("returnCode", "0")) not in ("0", "")):
+        error(t("code_send_fail", msg=_err_msg(rv) or rv.get("errorMessage", "")))
         return None
     success(t("code_ok"))
     info(t("creating_account"))
     rb = client.bind_email(email, password, type_="1")
-    if isinstance(rb, dict) and "_error" in rb:
+    if _is_err(rb):
         if "100077" in str(rb.get("_error", "")):              # aaa100077 = email ya bindeado
             error(t("email_in_use")); info(t("one_email_note"))
         else:
-            error(t("register_fail", msg=rb.get("_msg", rb.get("_error"))))
+            error(t("register_fail", msg=_err_msg(rb)))
         return None
     info(t("logging_in"))
     c2 = IPTVClient(auto_activate=False)
@@ -2198,7 +2213,7 @@ def register_account():
         success(f"{t('registered')} -- userId={c2.user_id}")
         _maybe_save_creds(email, password)
         return c2
-    error(t("login_failed", msg=(rl or {}).get("_msg", (rl or {}).get("_error", ""))))
+    error(t("login_failed", msg=_err_msg(rl or {})))
     return None
 
 
@@ -2212,8 +2227,8 @@ def recover_password():
         error(t("not_activated")); return None
     info(t("sending_code", email=email))
     r = client.send_email_verify_code(email, type_="3")
-    if isinstance(r, dict) and "_error" in r:
-        error(t("code_send_fail", msg=r.get("_msg", r.get("_error"))))
+    if _is_err(r):
+        error(t("code_send_fail", msg=_err_msg(r)))
         return None
     success(t("code_sent"))
     info(t("check_email_hint"))
@@ -2226,8 +2241,8 @@ def recover_password():
         warn(t("newpwd_required")); return None
     info(t("resetting"))
     rr = client.reset_pwd(email, newpass, code, type_="3")
-    if isinstance(rr, dict) and "_error" in rr:
-        error(t("reset_fail", msg=rr.get("_msg", rr.get("_error"))))
+    if _is_err(rr):
+        error(t("reset_fail", msg=_err_msg(rr)))
         return None
     info(t("logging_in"))
     c2 = IPTVClient(auto_activate=False)
@@ -2236,7 +2251,7 @@ def recover_password():
         success(f"{t('pwd_reset_ok')} -- userId={c2.user_id}")
         _maybe_save_creds(email, newpass)
         return c2
-    error(t("login_failed", msg=(rl or {}).get("_msg", (rl or {}).get("_error", ""))))
+    error(t("login_failed", msg=_err_msg(rl or {})))
     return None
 
 
@@ -2333,8 +2348,8 @@ def main():
             info(t("logging_in"))
             client = IPTVClient(auto_activate=False)
             result = client.login(username, password)
-            if "_error" in result:
-                error(t("login_failed", msg=result.get('_msg', result.get('_error'))))
+            if _is_err(result) or not client.user_id:
+                error(t("login_failed", msg=_err_msg(result)))
                 warn(t("fallback_free"))
                 client = IPTVClient()
             else:
