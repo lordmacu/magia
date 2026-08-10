@@ -147,7 +147,7 @@ STRINGS = {
         "switch_hint": "Auto-login is on. Run 'magia --switch' to change account, or 'magia --free' for free tier.",
         "relogin_menu": "Saved credentials didn't work. Opening the sign-in menu...",
         "logout": "Log out",
-        "logout_hint": "clear saved credentials, switch to free tier",
+        "logout_hint": "forget the saved account (stops auto-login)",
         "logged_out": "Logged out. Saved credentials removed from .env.",
         "register": "Register",
         "register_hint": "create account: email + password",
@@ -279,7 +279,7 @@ STRINGS = {
         "switch_hint": "Auto-login activo. Corre 'magia --switch' para cambiar de cuenta, o 'magia --free' para modo gratuito.",
         "relogin_menu": "Las credenciales guardadas no funcionaron. Abriendo el menu de sesion...",
         "logout": "Cerrar sesion",
-        "logout_hint": "borra credenciales guardadas, pasa a modo gratuito",
+        "logout_hint": "olvida la cuenta guardada (deja de auto-loguear)",
         "logged_out": "Sesion cerrada. Credenciales removidas del .env.",
         "register": "Registrarse",
         "register_hint": "crear cuenta: email + contrasena",
@@ -2455,10 +2455,24 @@ def main():
             (t("live_tv"),         t("live_hint")),
             (tg_label,             t("telegram_hint")),
             (t("help"),            t("help_hint")),
-            (t("exit"),            ""),
         ]
+        # "Cerrar sesion" solo si hay una sesion de cuenta guardada (auto-login activo).
+        # Se pone antes de "Salir": Salir mantiene la sesion; Cerrar sesion la olvida.
+        logged_in = bool(os.environ.get("IPTV_USERNAME") and os.environ.get("IPTV_PASSWORD"))
+        logout_idx = None
+        if logged_in:
+            logout_idx = len(menu)
+            menu.append((t("logout"), t("logout_hint")))
+        exit_idx = len(menu)
+        menu.append((t("exit"), ""))
+
         idx = select_menu(t("select"), menu, back=False)
-        if idx is None or idx == 10:
+        if idx is None or idx == exit_idx:
+            console.print(f"\n  [dim]{t('bye')}[/dim]\n")
+            break
+        if logout_idx is not None and idx == logout_idx:
+            _clear_saved_creds()
+            success(t("logged_out"))
             console.print(f"\n  [dim]{t('bye')}[/dim]\n")
             break
 
