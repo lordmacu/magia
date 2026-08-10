@@ -2344,6 +2344,7 @@ def main():
             warn(t("relogin_menu"))
             client = None                      # credenciales invalidas -> cae al menu
         else:
+            client.is_account = True
             success(f"{t('logged_in')} -- userId={client.user_id}")
             info(t("switch_hint"))
 
@@ -2368,12 +2369,16 @@ def main():
             if client is None:
                 warn(t("fallback_free")); client = IPTVClient()
                 success(f"{t('connected_free')} -- userId={client.user_id}")
+            else:
+                client.is_account = True
         elif auth_idx == 3:
             # Recuperar contrasena (email + codigo). Si falla, cae a free.
             client = recover_password()
             if client is None:
                 warn(t("fallback_free")); client = IPTVClient()
                 success(f"{t('connected_free')} -- userId={client.user_id}")
+            else:
+                client.is_account = True
         elif auth_idx == 4:
             # Logout: borra credenciales guardadas y usa tier free esta corrida.
             _clear_saved_creds()
@@ -2414,6 +2419,7 @@ def main():
                     warn(t("fallback_free"))
                     client = IPTVClient()
                 else:
+                    client.is_account = True
                     success(f"{t('logged_in')} -- userId={client.user_id}")
                     # Guardar credenciales para auto-login la proxima vez (o actualizar al cambiar de cuenta).
                     if confirm(t("save_creds"), default=True):
@@ -2456,11 +2462,10 @@ def main():
             (tg_label,             t("telegram_hint")),
             (t("help"),            t("help_hint")),
         ]
-        # "Cerrar sesion" solo si hay una sesion de cuenta guardada (auto-login activo).
+        # "Cerrar sesion" solo si estamos en una sesion de CUENTA (no free tier).
         # Se pone antes de "Salir": Salir mantiene la sesion; Cerrar sesion la olvida.
-        logged_in = bool(os.environ.get("IPTV_USERNAME") and os.environ.get("IPTV_PASSWORD"))
         logout_idx = None
-        if logged_in:
+        if getattr(client, "is_account", False):
             logout_idx = len(menu)
             menu.append((t("logout"), t("logout_hint")))
         exit_idx = len(menu)
@@ -2471,7 +2476,8 @@ def main():
             console.print(f"\n  [dim]{t('bye')}[/dim]\n")
             break
         if logout_idx is not None and idx == logout_idx:
-            _clear_saved_creds()
+            client.logout()                 # avisa al server (v5/loginOut), como el app
+            _clear_saved_creds()            # olvida las credenciales locales (corta auto-login)
             success(t("logged_out"))
             console.print(f"\n  [dim]{t('bye')}[/dim]\n")
             break

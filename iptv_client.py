@@ -196,6 +196,16 @@ class IPTVClient:
             self.user_id = r["userId"]; self.user_token = r["userToken"]
         return r
 
+    def logout(self):
+        """Cierra sesion en el SERVER (v5/loginOut). Replica LogoutBean{userId, userToken}
+        del app (fire-and-forget: el app descarta el resultado). Invalida el userToken en el
+        backend; NO borra credenciales locales (de eso se encarga el CLI). No-op sin sesion.
+        Ruta decompilada: n9/ViewOnClickListenerC4544b -> ac/m1.m635i -> z1.G2 -> v5/loginOut."""
+        if not self.user_id or not self.user_token:
+            return {"_skipped": "no session"}
+        return self.call("v5/loginOut", {"userId": self.user_id, "userToken": self.user_token},
+                         base_fields=False)
+
     # ─────────────  REGISTRO / RECUPERAR CONTRASEÑA (email + código)  ─────────────
     @staticmethod
     def _hash_pwd(password):
