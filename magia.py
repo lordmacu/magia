@@ -1154,6 +1154,29 @@ def get_live_cdn_auth(client, channel_code):
     return None, None
 
 
+def live_playlist_error(url, timeout=15):
+    """Prueba el playlist ANTES de abrir el player. None si responde; si no, un mensaje.
+
+    Hace falta porque el proxy local reenvia el status del CDN tal cual y VLC lo traduce
+    a un "Your input can't be opened" con una URL de 127.0.0.1: parece que fallara el CLI
+    cuando en realidad el CDN dijo que no. Pasa, por ejemplo, con canales listados que el
+    plan actual no tiene autorizados (el CDN devuelve 401)."""
+    import urllib.error
+    import urllib.request
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as r:
+            if r.status == 200:
+                return None
+            return f"el CDN respondio HTTP {r.status}"
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            return ("HTTP 401: el CDN no autoriza este canal. Suele ser un canal premium "
+                    "que tu plan actual no incluye -- probá con otro.")
+        return f"el CDN respondio HTTP {e.code}"
+    except Exception as e:
+        return f"no responde el proxy local ({type(e).__name__}: {e})"
+
+
 def stream_live(client, channel_code, channel_name):
     """Reproduce TV en vivo 100% Python (sin app ni emulador): resuelve el CDN Cloudflare
     (sign_type=cfl) via get_slb — igual que las películas — y levanta un proxy HLS local que
@@ -1177,9 +1200,18 @@ def stream_live(client, channel_code, channel_name):
         return
 
     httpd, port = live_cfl.start_proxy(host, cfl_url, content_license, token, channel_code)
-    _ACTIVE_LIVE_PROXIES.append(httpd)
     url = f"http://127.0.0.1:{port}/play.m3u8"
 
+    # Comprobar el canal ANTES de cantar victoria: si el CDN lo rechaza, avisar aca en vez
+    # de dejar que VLC muestre un "input can't be opened" con una URL de 127.0.0.1.
+    err = live_playlist_error(url)
+    if err:
+        httpd.shutdown()
+        httpd.server_close()
+        error(f"No se puede reproducir {channel_name}: {err}")
+        return
+
+    _ACTIVE_LIVE_PROXIES.append(httpd)
     success(f"Streaming: {channel_name}")
     info(f"Proxy local (cfl + sign_o3) en 127.0.0.1:{port}")
 
