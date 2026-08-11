@@ -176,7 +176,9 @@ fi
 # ═══════════════════════════════════════
 step "Instalando dependencias"
 
-for dep in pycryptodome requests rich InquirerPy unicorn; do
+# unicorn ya NO va: el sign_o3 del vivo es Python puro (tweaked_md5.py). Solo hace
+# falta para correr test_tweaked_md5.py contra el .so, que es cosa de desarrollo.
+for dep in pycryptodome requests rich InquirerPy; do
     case "$dep" in
         pycryptodome) import_name="Crypto" ;;
         *)            import_name="$dep" ;;
@@ -328,7 +330,7 @@ step "Verificación"
 
 cd "$INSTALL_DIR"
 $PYTHON -c "
-import rich, InquirerPy, requests, Crypto, unicorn
+import rich, InquirerPy, requests, Crypto
 from iptv_client import IPTVClient
 print('  Modules OK')
 " 2>/dev/null && ok "Todos los módulos cargan correctamente" || warn "Verificación de módulos falló (puede funcionar igual)"

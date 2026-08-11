@@ -14,9 +14,9 @@
   msg   = f"token={TOKEN}&sign2_method=sign_o3&instance=0&start_moment={MOMENT}".encode() + SALT
   sign2 = tweaked_md5(msg)                                          # 32 hex lowercase
   ```
-- `tweaked_md5` = un MD5 **modificado** (mismo IV/K/shifts/padding que MD5 estándar, pero con
-  el *message schedule* cambiado). En vez de re-implementarlo a mano, **emulamos la función de
-  compresión real del `.so` con Unicorn Engine** → Python puro, exacto.
+- `tweaked_md5` = un MD5 **modificado**. Primero se resolvió **emulando** la compresión real del
+  `.so` con Unicorn; después esa emulación se usó como **oráculo** para derivar el algoritmo y
+  reimplementarlo en Python puro. **Ya no hace falta el `.so` ni `unicorn`** (ver §"Cierre" abajo).
 - Implementación lista para usar: [`sign_o3.py`](sign_o3.py). `python3 sign_o3.py` corre los
   vectores de verificación (5/5 OK).
 - Además, con un `ncap` (captura de red) confirmamos **cómo hablar directo con el CDN** y qué
@@ -126,5 +126,42 @@ probablemente el mismo `tweaked_md5` sobre campos `media_code/expired/token`.
 - **Unicorn Engine** para emular la compresión real y replicar el MD5-tweak en Python puro.
 - **Python 3** (`pip install unicorn`).
 
-> Requisitos del módulo final: solo `unicorn` + el archivo `libranger-jni.so`. **No** necesita
-> Android, ni el emulador, ni adb, ni Frida en runtime.
+> Requisitos del módulo final: **ninguno**. Ni `unicorn`, ni el `.so`, ni Android/adb/Frida.
+
+## Cierre (2026-08-11): fuera el `.so` — el MD5-tweak, resuelto
+
+La emulación con Unicorn dejó de ser necesaria: sirvió de **oráculo** para derivar el algoritmo
+y hoy `tweaked_md5.py` lo hace en Python puro.
+
+**Cómo se derivó.** La función `0x529178` hace exactamente un `ror` por ronda (64 en total).
+Hookeando cada uno con `UC_HOOK_CODE` y leyendo el registro fuente *antes* de ejecutar se obtiene
+
+```
+f_i = a + F(b,c,d) + K[i] + M[g]
+```
+
+Con el estado reconstruido ronda a ronda, se despeja `(F, g)` probando las 4 funciones estándar
+por las 16 palabras y cruzando varias muestras aleatorias. Salieron **60 de 64 rondas** como MD5
+estándar (con el schedule tweakeado en la 1ª vuelta). Las 4 restantes —42, 45, 54, 62— no daban
+solución; se resolvieron exigiendo que `X − F(b,c,d) − M[g]` fuese **constante** entre muestras:
+esa constante es `K'[i] − K[i]`.
+
+**El tweak completo, entonces, es sólo:**
+
+1. Schedule de la 1ª vuelta: `[10,11,12,13,14,15,6,7,8,9,0,1,2,3,4,5]` (vueltas 2–4 estándar).
+2. Cuatro constantes K distintas — con pinta de erratas de transcripción (`db`→`bd`, `ad`→`da`):
+
+   | ronda | K estándar | K real     |
+   |-------|------------|------------|
+   | 42    | `d4ef3085` | `d46f3085` |
+   | 45    | `e6db99e5` | `e6bd99e5` |
+   | 54    | `ffeff47d` | `ffecc47d` |
+   | 62    | `2ad7d2bb` | `2da7d2bb` |
+
+Todo lo demás —IV, F/G/H/I, shifts, padding little-endian, feed-forward Davies-Meyer— es MD5 de manual.
+
+**Verificación** (`test_tweaked_md5.py`): `compress` idéntica al `.so` en 200 bloques aleatorios y
+en casos borde; `digest_hex` idéntica en mensajes de 0–300 bytes incluidas las fronteras de padding
+(55/56, 63/64); y los 5 vectores capturados de la app en vivo siguen dando 5/5. Probado además
+**con el `.so` movido de sitio y `unicorn` bloqueado**: playlist en vivo `200` y segmento `.ts` real
+descargado del CDN (primer byte `0x47`, sync de MPEG-TS).

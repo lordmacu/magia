@@ -46,8 +46,9 @@ en §6 como **material de referencia / plan B**, pero **no hacen falta para stre
     `adb -s emulator-5554 shell "su 0 sh -c 'pkill -9 frida-server; cd /data/local/tmp && ./frida-server &'"`).
 - **Python:**
   - Frida requiere **py3.14**: `/opt/homebrew/opt/python@3.14/bin/python3.14` (tiene `frida`).
-  - Cliente API / crypto / Unicorn: `/opt/homebrew/bin/python3` (tiene `pycryptodome`, `requests`,
-    `unicorn`, `python-dotenv`).
+  - Cliente API / crypto: `/opt/homebrew/bin/python3` (`pycryptodome`, `requests`, `python-dotenv`).
+    **`unicorn` ya no es dependencia de runtime** — sólo para correr `test_tweaked_md5.py`
+    contra el `.so` y para el RE con `so_emulator.py`.
 - **Ghidra 12.1.2 headless** + `openjdk@21` (para RE del cripto; ver §7).
 - **radare2** (`r2`) para disassembly rápido.
 - **tcpdump** (en el emu, vía adb root) para descubrir URLs de media reales.
@@ -57,8 +58,13 @@ en §6 como **material de referencia / plan B**, pero **no hacen falta para stre
 
 Archivos clave del repo:
 - `iptv_client.py` — cliente de la API del portal (activate, play_live, get_slb, live_data, ...).
-- `sign_o3.py` — genera el `sign2` (emula la compresión MD5-tweak con Unicorn). **Necesita el .so**
-  (`libranger-jni.so` junto al módulo, o env `LIBRANGER_SO=/ruta`).
+- `tweaked_md5.py` — el MD5-tweak en **Python puro**. Es lo único que el vivo necesitaba del
+  binario nativo, y ya no. Sin dependencias.
+- `sign_o3.py` — genera el `sign2` usando `tweaked_md5`. **Ya NO necesita el `.so` ni `unicorn`.**
+  Conserva la clase `TweakedMD5` (emulación con Unicorn) sólo como oráculo de verificación;
+  el import de `unicorn` es perezoso.
+- `test_tweaked_md5.py` — comprueba que la versión Python coincide bit a bit con el `.so`.
+  Se salta solo si no están `libranger-jni.so` + `unicorn` (que ahora son sólo de desarrollo).
 - `live_cfl.py` — **el streamer de vivo (camino correcto)**.
 - `download_iptv.py` — descarga VOD (mismo patrón cfl; sirve de referencia).
 - `svs_cipher.py` — cripto SVS Función A/B (plan B, §6).
@@ -212,9 +218,20 @@ SALT  = b"salt3333=4" + bytes.fromhex("980d0a1532c9c3821708c0")     # constante 
 msg   = f"token={TOKEN}&sign2_method=sign_o3&instance=0&start_moment={MOMENT}".encode() + SALT
 sign2 = tweaked_md5(msg)                                            # 32 hex lowercase
 ```
-- `tweaked_md5` = un MD5 **modificado** (mismo IV/K/shifts/padding que MD5 estándar, pero con el
-  *message schedule* cambiado). No se reimplementa a mano: **`sign_o3.py` EMULA la función de
-  compresión real del `.so` con Unicorn** (fcn `0x529178`). Igual de exacto y robusto.
+- `tweaked_md5` = un MD5 **modificado**, hoy reimplementado en Python puro (`tweaked_md5.py`).
+  El tweak es sólo esto, y todo lo demás (IV, F/G/H/I, shifts, padding, Davies-Meyer) es MD5 de manual:
+  1. *Message schedule* de la 1ª vuelta = `[10,11,12,13,14,15,6,7,8,9,0,1,2,3,4,5]`; vueltas 2–4 estándar.
+  2. Cuatro constantes K cambiadas — parecen erratas de transcripción del MD5 original:
+
+     | ronda | K estándar | K real     |
+     |-------|------------|------------|
+     | 42    | `d4ef3085` | `d46f3085` |
+     | 45    | `e6db99e5` | `e6bd99e5` |
+     | 54    | `ffeff47d` | `ffecc47d` |
+     | 62    | `2ad7d2bb` | `2da7d2bb` |
+
+  La emulación con Unicorn de `0x529178` sigue disponible como **oráculo** para validar (fue con ella
+  que se derivó todo esto), pero ya no participa del camino de ejecución.
 - `TOKEN` = el `token` del Content-Auth (del cfl url). `MOMENT` = `int(time.time()*1000)` fresco.
 
 ### Cómo re-extraer `sign_o3` si cambia (el SALT, la fórmula o el schedule)

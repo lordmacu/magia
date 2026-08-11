@@ -9,11 +9,15 @@ FÓRMULA (reverse-engineered, ver DOCS abajo):
     msg   = f"token={TOKEN}&sign2_method=sign_o3&instance=0&start_moment={MOMENT}".encode() + SALT
     sign2 = tweaked_md5(msg)                                            # hex lowercase de 32 chars
 
-`tweaked_md5` es un MD5 modificado (mismo IV/K/shifts/padding que MD5 estándar, pero con
-un *message schedule* distinto en la 1ª ronda y 4 rondas anómalas). En vez de re-implementar
-esas rondas a mano, EMULAMOS la función de compresión real del binario `libranger-jni.so`
-con Unicorn Engine (ver clase TweakedMD5). Es puro Python: solo requiere el paquete `unicorn`
-y el archivo .so (se incluye una copia junto a este módulo o se apunta con LIBRANGER_SO).
+`tweaked_md5` es un MD5 modificado. Desde 2026-08-11 está implementado en **Python puro**
+(módulo `tweaked_md5.py`): NO hace falta `libranger-jni.so` ni el paquete `unicorn`.
+El tweak resultó ser mínimo: el *message schedule* de la 1ª vuelta, más 4 constantes K
+cambiadas (rondas 42/45/54/62); todo lo demás es MD5 de manual.
+
+La clase `TweakedMD5` de este módulo (emulación del .so con Unicorn) se conserva sólo como
+ORÁCULO de verificación: `test_tweaked_md5.py` la usa para comprobar que la versión Python
+coincide bit a bit con el binario. Importa `unicorn` de forma perezosa, así que su ausencia
+no afecta al camino normal.
 
 Uso:
     from sign_o3 import sign_o3
@@ -26,10 +30,19 @@ import os
 import struct
 import time
 
-from unicorn import Uc, UC_ARCH_ARM64, UC_MODE_ARM, UC_PROT_ALL, UcError
-from unicorn.arm64_const import (
-    UC_ARM64_REG_X0, UC_ARM64_REG_X1, UC_ARM64_REG_SP, UC_ARM64_REG_LR, UC_ARM64_REG_PC,
-)
+import tweaked_md5
+
+
+def _load_unicorn():
+    """Importa Unicorn SOLO cuando se instancia TweakedMD5 (el oraculo de los tests).
+
+    El camino normal ya no lo necesita: sign_o3() usa tweaked_md5, en Python puro."""
+    global Uc, UC_ARCH_ARM64, UC_MODE_ARM, UC_PROT_ALL, UcError
+    global UC_ARM64_REG_X0, UC_ARM64_REG_X1, UC_ARM64_REG_SP, UC_ARM64_REG_LR, UC_ARM64_REG_PC
+    from unicorn import Uc, UC_ARCH_ARM64, UC_MODE_ARM, UC_PROT_ALL, UcError
+    from unicorn.arm64_const import (
+        UC_ARM64_REG_X0, UC_ARM64_REG_X1, UC_ARM64_REG_SP, UC_ARM64_REG_LR, UC_ARM64_REG_PC,
+    )
 
 # --- Constantes del algoritmo (extraídas por RE) ---
 SALT = b"salt3333=4" + bytes.fromhex("980d0a1532c9c3821708c0")
@@ -51,6 +64,7 @@ class TweakedMD5:
     """
 
     def __init__(self, so_path=LIBRANGER_SO):
+        _load_unicorn()
         if not os.path.exists(so_path):
             raise FileNotFoundError(
                 f"No se encontró '{so_path}'. Este binario NO se distribuye en el repo "
@@ -201,7 +215,7 @@ def sign_o3(token: str, start_moment: int) -> str:
     """Devuelve el `sign2` (32 hex lowercase) para un token de sesión y un start_moment (ms)."""
     msg = (f"token={token}&sign2_method=sign_o3&instance=0"
            f"&start_moment={start_moment}").encode() + SALT
-    return _engine().digest_hex(msg)
+    return tweaked_md5.digest_hex(msg)
 
 
 def now_moment_ms() -> int:
