@@ -108,6 +108,10 @@ class IPTVClient:
         self.host = self.HOSTS[0]
         self.s = requests.Session()
         self.s.verify = False
+        # Como renovar la sesion si el server la declara muerta (ver call/_reauth).
+        self._auth_mode = "manual" if user_token else None
+        self._creds = None
+        self._reauthing = False
         app_id = os.environ.get("IPTV_APP_ID", "")
         apk_ver = os.environ.get("IPTV_APK_VERSION", "")
         if not app_id:
@@ -132,7 +136,46 @@ class IPTVClient:
             self.activate()
 
     # ---- transporte ----
+    # Codigos con los que el server declara la sesion muerta: aaa100028 = "未登录！"
+    # (no logueado), aaa100027 su hermano. La app NO refresca token -- marca la
+    # sesion invalida y abre el dialogo de login
+    # (com/module/basemvp/AbstractActivityC2036a.U5, ac/f1). Tampoco hay heartbeat.
+    # Aqui re-minteamos con las mismas credenciales y reintentamos una vez, para que
+    # el CLI no haya que reiniciarlo despues de quedarse idle.
+    SESSION_DEAD = ("aaa100027", "aaa100028")
+    # Rutas que establecen sesion (o la cierran): reintentar con re-auth ahi no tiene
+    # sentido y en v3/snToken seria danino (corre con el device a medio limpiar).
+    NO_REAUTH_PATHS = ("v8/active", "v8/login", "v5/loginOut", "v3/snToken")
+
     def call(self, path, bean=None, base_fields=True):
+        r = self._call_once(path, bean, base_fields)
+        if (isinstance(r, dict)
+                and str(r.get("_error", "")) in self.SESSION_DEAD
+                and not self._reauthing
+                and not any(path.startswith(p) for p in self.NO_REAUTH_PATHS)
+                and self._reauth()):
+            r = self._call_once(path, bean, base_fields)
+        return r
+
+    def _reauth(self):
+        """Re-mintea la sesion por la misma via con que se obtuvo.
+
+        'account' -> v8/login con las credenciales guardadas; 'device' -> v8/active.
+        'manual' (use_account con un token capturado) no se puede renovar: activar
+        ahi degradaria una sesion de cuenta a free en silencio, asi que se rinde."""
+        self._reauthing = True
+        try:
+            if self._auth_mode == "account" and self._creds:
+                r = self.login(*self._creds)
+            elif self._auth_mode == "device":
+                r = self.activate()
+            else:
+                return False
+        finally:
+            self._reauthing = False
+        return bool(isinstance(r, dict) and r.get("userToken"))
+
+    def _call_once(self, path, bean=None, base_fields=True):
         body = {}
         if base_fields:
             body.update({"portalCode": self.portal, "userId": self.user_id, "userToken": self.user_token})
@@ -168,11 +211,13 @@ class IPTVClient:
             self.user_id = r["userId"]
             self.user_token = r["userToken"]
             self.jwt = r.get("jwtToken", "")
+            self._auth_mode = "device"
         return r
 
     def use_account(self, user_id, user_token):
         """Fija una sesión de CUENTA ya logueada (obtenida con login manual + captura del token)."""
-        self.user_id = user_id; self.user_token = user_token; return self
+        self.user_id = user_id; self.user_token = user_token
+        self._auth_mode = "manual"; return self
 
     def login(self, username, password, account_type="2", type_="1", area_code=""):
         """Login por cuenta email.  accountType='2', type='1' (login por email).
@@ -192,6 +237,7 @@ class IPTVClient:
         El salt "cloudstream" es fijo (decompilado: `AbstractC5729e.m22190c` hace
         `MD5((str + "cloudstream").getBytes())`, getBytes()=UTF-8).  El comentario viejo decía
         "MD5 plano latin-1" y estaba MAL — por eso el login fallaba con credenciales correctas."""
+        creds = (username, password, account_type, type_, area_code)
         password = hashlib.md5(((password or "") + "cloudstream").encode("utf-8")).hexdigest()
         bean = {"accountType": account_type, "userName": username, "password": password, "type": type_,
                 "macAddr": "02:00:00:00:00:00", "areaCode": area_code, "verificationCode": "",
@@ -199,6 +245,7 @@ class IPTVClient:
         r = self.call("v8/login", bean, base_fields=False)
         if isinstance(r, dict) and r.get("userToken"):
             self.user_id = r["userId"]; self.user_token = r["userToken"]
+            self._auth_mode = "account"; self._creds = creds
         return r
 
     def logout(self):
@@ -248,6 +295,7 @@ class IPTVClient:
             self.user_id = ar["userId"]
             self.user_token = ar["userToken"]
             self.jwt = ar.get("jwtToken", "")
+            self._auth_mode = "device"     # el device nuevo ya puede auto-renovarse
             ar = {**ar, "sn": sn, "snToken": sn_token}
         return ar
 

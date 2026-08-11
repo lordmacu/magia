@@ -60,6 +60,7 @@ STRINGS = {
         "cdn_auth": "Getting CDN authorization...",
         "cdn_ready": "CDN ready",
         "cdn_valid": "auth valid for {h:.1f} hours",
+        "cdn_refresh": "CDN authorization expired, renewing...",
         "cdn_no_cf": "No Cloudflare CDN found (downloads may not work)",
         "main_menu": "Main Menu",
         "search": "Search",
@@ -196,6 +197,7 @@ STRINGS = {
         "cdn_auth": "Obteniendo autorizacion CDN...",
         "cdn_ready": "CDN listo",
         "cdn_valid": "auth valido por {h:.1f} horas",
+        "cdn_refresh": "Autorizacion CDN vencida, renovando...",
         "cdn_no_cf": "No se encontro CDN Cloudflare (las descargas pueden no funcionar)",
         "main_menu": "Menu Principal",
         "search": "Buscar",
@@ -527,11 +529,11 @@ def get_cf_vod_auth(client):
 def resolve_streams(client, content_id, series_content_id=""):
     play = client.play_vod(content_id, series_content_id=series_content_id)
     if "_error" in play:
-        return None, play.get("_msg", play.get("_error"))
+        return None, play.get("_msg", play.get("_error")), []
     try:
         ep_data = play["episodeList"][0]
     except (KeyError, IndexError):
-        return None, "No episode data"
+        return None, "No episode data", []
 
     streams = []
     for tm in ep_data.get("totalMovieList", []):
@@ -545,7 +547,7 @@ def resolve_streams(client, content_id, series_content_id=""):
                 "audio": m.get("audioInfo", ""),
             })
     if not streams:
-        return None, "No streams"
+        return None, "No streams", []
     streams.sort(key=lambda s: (0 if s["encode_format"] == "h264" else 1))
 
     subtitles = []
@@ -699,6 +701,23 @@ def open_folder(path):
             subprocess.Popen(["xdg-open", str(folder)])
     except Exception:
         pass
+
+
+def fresh_cf_auth(client, cdn_base, cf_auth, margin_s=300):
+    """Renueva el Content-Auth del CDN si ya vencio (o vence dentro del margen).
+
+    El CLI captura cdn_base/cf_auth UNA sola vez al arrancar y los pasa por valor por
+    todo el menu; el auth dura ~4 h (query `expired=<unix>`). Con el CLI abierto un
+    rato largo esos valores caducan y la reproduccion se rompe del lado del player,
+    sin error visible en el CLI. Sin campo `expired` no podemos juzgar -> se deja como
+    esta y siguen valiendo los reintentos por 401 de la ruta de descarga."""
+    m = re.search(r"expired=(\d+)", cf_auth or "")
+    if not m or int(m.group(1)) - time.time() >= margin_s:
+        return cdn_base, cf_auth
+    info(t("cdn_refresh"))
+    time.sleep(API_DELAY)
+    new_base, new_auth = get_cf_vod_auth(client)
+    return (new_base, new_auth) if new_base else (cdn_base, cf_auth)
 
 
 def refresh_auth_if_needed(client, err, cdn_base, cf_auth):
@@ -1564,7 +1583,7 @@ def handle_movie(client, item, cdn_base, cf_auth, out_dir):
     if dl_err and "401" in str(dl_err):
         cdn_base, cf_auth = get_cf_vod_auth(client)
         time.sleep(API_DELAY)
-        streams, _ = resolve_streams(client, content_id)
+        streams, _, _subs = resolve_streams(client, content_id)
         if streams:
             s = streams[min(stream_idx, len(streams) - 1)]
             size, dl_err = download_file(cdn_base, s["media_code"], cf_auth, s["license"],
@@ -1820,27 +1839,50 @@ def _open_in_player(player, url, content_auth, content_license, subtitles=None):
 
     sub_args = []
     if subtitles:
-        for i, sub in enumerate(subtitles):
-            sub_url = sub["url"]
-            if player == "mpv":
-                sub_args.extend([f"--sub-file={sub_url}"])
-            elif player == "iina":
-                sub_args.extend([f"--mpv-sub-file={sub_url}"])
-            elif player == "vlc":
-                if i == 0:
+        if player == "vlc":
+            # VLC trata --sub-file como ruta de disco: vlc_path2uri() la vuelve
+            # relativa al CWD y la URL remota acaba como
+            # file:///<cwd>/http%3A//host/x.srt -> "input can't be opened".
+            # --input-slave si acepta MRLs, y varias separadas por '#'.
+            sub_args.append("--input-slave=" + "#".join(s["url"] for s in subtitles))
+        else:
+            for sub in subtitles:
+                sub_url = sub["url"]
+                if player == "mpv":
                     sub_args.extend([f"--sub-file={sub_url}"])
+                elif player == "iina":
+                    sub_args.extend([f"--mpv-sub-file={sub_url}"])
 
     plat = sys.platform
     if player == "mpv":
         cmd = ["mpv", f"--http-header-fields={headers_str}", url] + sub_args
         subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     elif player == "iina" and plat == "darwin":
-        cmd = ["open", "-a", "IINA", url, "--args",
-               f"--mpv-http-header-fields={headers_str}"] + sub_args
+        # Mismo defecto que VLC: `open ... --args` descarta las banderas si IINA ya
+        # estaba abierta, y el proceso vivo arrastra las del lanzamiento anterior.
+        # iina-cli es el entrypoint de linea de comandos soportado y las respeta.
+        iina_exe = next((p for p in ("/Applications/IINA.app/Contents/MacOS/iina-cli",
+                                     "/Applications/IINA.app/Contents/MacOS/IINA")
+                         if Path(p).exists()), None)
+        if iina_exe:
+            cmd = [iina_exe, url, f"--mpv-http-header-fields={headers_str}"] + sub_args
+        else:
+            cmd = ["open", "-na", "IINA", url, "--args",
+                   f"--mpv-http-header-fields={headers_str}"] + sub_args
         subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     elif player == "vlc" and plat == "darwin":
-        cmd = ["open", "-a", "VLC", url, "--args",
-               f"--http-user-agent=Ranger/4.9.4-17294ac0"] + sub_args
+        # `open -a VLC ... --args` solo entrega los argumentos cuando VLC arranca
+        # de cero: si ya estaba abierto se descartan en silencio (se pierden
+        # User-Agent y subtitulos) y el proceso vivo sigue aplicando las opciones
+        # globales de su lanzamiento anterior a cada item nuevo -- por eso un
+        # canal en vivo heredaba el .srt del capitulo anterior. Lanzar el binario
+        # del bundle da un proceso propio por reproduccion, sin contaminacion.
+        vlc_bin = "/Applications/VLC.app/Contents/MacOS/VLC"
+        if Path(vlc_bin).exists():
+            cmd = [vlc_bin, url, "--http-user-agent=Ranger/4.9.4-17294ac0"] + sub_args
+        else:
+            cmd = ["open", "-na", "VLC", url, "--args",
+                   "--http-user-agent=Ranger/4.9.4-17294ac0"] + sub_args
         subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     elif player == "vlc":
         cmd = ["vlc", url, f"--http-user-agent=Ranger/4.9.4-17294ac0"] + sub_args
@@ -1886,6 +1928,7 @@ def stream_movie(client, item, cdn_base, cf_auth):
 
     s = streams[stream_idx]
     ext = "ts" if s["video_format"] == "ts" else "mp4"
+    cdn_base, cf_auth = fresh_cf_auth(client, cdn_base, cf_auth)
     url = f"{cdn_base}/vod/{s['media_code']}_media.{ext}"
     _open_in_player(player, url, cf_auth, s["license"], subtitles=subtitles)
 
@@ -1939,6 +1982,7 @@ def stream_episode(client, item, episodes, cdn_base, cf_auth):
 
     s = streams[stream_idx]
     ext = "ts" if s["video_format"] == "ts" else "mp4"
+    cdn_base, cf_auth = fresh_cf_auth(client, cdn_base, cf_auth)
     url = f"{cdn_base}/vod/{s['media_code']}_media.{ext}"
     ep_name = ep.get("name", f"ep {ep_num}")
     section(f"{item.get('name', 'Series')} - {ep_name}")
@@ -1991,6 +2035,7 @@ def show_episode_links(client, item, episodes, cdn_base, cf_auth):
         error(f"Failed: {err}")
         return
 
+    cdn_base, cf_auth = fresh_cf_auth(client, cdn_base, cf_auth)
     for s in streams:
         ext = "ts" if s["video_format"] == "ts" else "mp4"
         url = f"{cdn_base}/vod/{s['media_code']}_media.{ext}"
@@ -2024,6 +2069,7 @@ def show_movie_link(client, item, cdn_base, cf_auth):
         error(f"Failed: {err}")
         return
 
+    cdn_base, cf_auth = fresh_cf_auth(client, cdn_base, cf_auth)
     for s in streams:
         ext = "ts" if s["video_format"] == "ts" else "mp4"
         url = f"{cdn_base}/vod/{s['media_code']}_media.{ext}"
