@@ -1154,6 +1154,25 @@ def get_live_cdn_auth(client, channel_code):
     return None, None
 
 
+#  Codigos del portal que aparecen al resolver un canal en vivo. Se traducen porque el
+#  error crudo trae el dict de la API y el mensaje del server viene en chino.
+_LIVE_ERRORES = {
+    "aaa100083": ("la cuenta esta en uso en otro dispositivo. Cerrá el CLI y volvé a "
+                  "abrirlo para tomar una sesión nueva."),
+    "aaa100028": "la sesión venció y no se pudo renovar sola. Reabrí el CLI.",
+    "aaa100027": "la sesión venció y no se pudo renovar sola. Reabrí el CLI.",
+}
+
+
+def describe_live_error(raw):
+    """Convierte el error crudo de resolve_live_cfl en algo legible para el usuario."""
+    texto = str(raw)
+    for code, msg in _LIVE_ERRORES.items():
+        if code in texto:
+            return msg
+    return texto
+
+
 def live_playlist_error(url, timeout=15):
     """Prueba el playlist ANTES de abrir el player. None si responde; si no, un mensaje.
 
@@ -1196,7 +1215,7 @@ def stream_live(client, channel_code, channel_name):
     try:
         host, cfl_url, content_license, token = live_cfl.resolve_live_cfl(client, channel_code)
     except Exception as e:
-        error(f"No se pudo resolver el canal en vivo: {e}")
+        error(f"No se pudo reproducir {channel_name}: {describe_live_error(e)}")
         return
 
     httpd, port = live_cfl.start_proxy(host, cfl_url, content_license, token, channel_code)

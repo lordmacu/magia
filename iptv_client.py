@@ -143,6 +143,12 @@ class IPTVClient:
     # Aqui re-minteamos con las mismas credenciales y reintentamos una vez, para que
     # el CLI no haya que reiniciarlo despues de quedarse idle.
     SESSION_DEAD = ("aaa100027", "aaa100028")
+    # aaa100083 = "您的账号已经在其他设备登录" (la cuenta ya inicio sesion en otro dispositivo).
+    # La app lo mete en la MISMA rama de sesion invalida que 100027/28 (ac/f1.java:142).
+    # En device/free re-activar es inofensivo y equivale a reiniciar el CLI, que es lo que
+    # destraba el caso real. Con una cuenta de verdad NO se re-loguea solo: seria pelearse
+    # la sesion a ida y vuelta con el dispositivo del usuario.
+    SESSION_TAKEN = ("aaa100083",)
     # Rutas que establecen sesion (o la cierran): reintentar con re-auth ahi no tiene
     # sentido y en v3/snToken seria danino (corre con el device a medio limpiar).
     NO_REAUTH_PATHS = ("v8/active", "v8/login", "v5/loginOut", "v3/snToken")
@@ -150,11 +156,13 @@ class IPTVClient:
     def call(self, path, bean=None, base_fields=True):
         r = self._call_once(path, bean, base_fields)
         if (isinstance(r, dict)
-                and str(r.get("_error", "")) in self.SESSION_DEAD
                 and not self._reauthing
-                and not any(path.startswith(p) for p in self.NO_REAUTH_PATHS)
-                and self._reauth()):
-            r = self._call_once(path, bean, base_fields)
+                and not any(path.startswith(p) for p in self.NO_REAUTH_PATHS)):
+            code = str(r.get("_error", ""))
+            recuperable = (code in self.SESSION_DEAD
+                           or (code in self.SESSION_TAKEN and self._auth_mode == "device"))
+            if recuperable and self._reauth():
+                r = self._call_once(path, bean, base_fields)
         return r
 
     def _reauth(self):

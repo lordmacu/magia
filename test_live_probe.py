@@ -73,5 +73,26 @@ class LivePlaylistProbe(unittest.TestCase):
         self.assertIsNotNone(msg, "si el proxy no responde hay que decirlo")
 
 
+class LiveErrorMessages(unittest.TestCase):
+    """El usuario no deberia ver dicts crudos ni texto en chino."""
+
+    def test_traduce_sesion_tomada_por_otro_dispositivo(self):
+        crudo = ("play_live sin liveAddressList: {'_error': 'aaa100083', "
+                 "'_msg': '您的账号已经en其他设备登录', '_path': 'v4/startPlayLive'}")
+        msg = magia.describe_live_error(crudo)
+        self.assertIn("otro dispositivo", msg)
+        self.assertNotIn("_error", msg, "no debe filtrar el dict")
+        self.assertNotIn("您", msg, "no debe filtrar el texto en chino")
+
+    def test_traduce_sesion_expirada(self):
+        msg = magia.describe_live_error("... {'_error': 'aaa100028', '_msg': '未登录！'}")
+        self.assertIn("sesi", msg.lower())
+        self.assertNotIn("未", msg)
+
+    def test_deja_pasar_lo_que_no_reconoce(self):
+        msg = magia.describe_live_error("no hay entrada CDN cfl para live en get_slb")
+        self.assertIn("CDN cfl", msg)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
